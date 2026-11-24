@@ -111,3 +111,70 @@ code { padding: 1px 5px; } pre { padding: 10px; overflow-x: auto; white-space: p
 fieldset.bracket { border: 1px solid var(--line); border-radius: 10px; padding: 10px 12px; margin: 4px 0 12px; }
 fieldset.bracket legend { color: var(--muted); font-size: 12px; padding: 0 6px; }
 a.btn { text-decoration: none; display: inline-block; flex: 0 0 auto; }
+.tiny-in { width: 70px; padding: 5px 7px; }
+.nowrap { flex-wrap: nowrap; white-space: nowrap; }
+.sw-muted { background: var(--muted); }
+ul.feed { list-style: none; padding: 0; margin: 0; max-height: 320px; overflow-y: auto; }
+ul.feed li { padding: 8px 0; border-bottom: 1px solid var(--line); }
+#journal { margin-top: 16px; }
+ol.seed { columns: 4; column-gap: 24px; font: 15px/2 var(--mono); padding-left: 2.4em; margin: 12px 0; user-select: none; -webkit-user-select: none; }
+@media (max-width: 700px) { ol.seed { columns: 2; } }
+.check-row { display: flex; gap: 8px; align-items: flex-start; color: var(--text); font-size: 13px; margin: 8px 0; }
+.check-row input { width: auto; margin-top: 3px; }
+ul.links { padding-left: 18px; } ul.links li { margin: 6px 0; }
+ol.steps li { margin: 6px 0; }
+#walletCreate { margin-top: 16px; }
+details.why { margin: 4px 0 12px; }
+details.why summary { font-weight: 500; }
+/* ---- desktop app (Electron): header doubles as the title bar ---- */
+.desktop .top { -webkit-app-region: drag; min-height: 52px; padding: 0 156px 0 18px; user-select: none; }
+.desktop .top button, .desktop .top a, .desktop .top input { -webkit-app-region: no-drag; }
+.desktop .login { -webkit-app-region: drag; }
+.desktop .login-card { -webkit-app-region: no-drag; }
+.desktop ::-webkit-scrollbar { width: 10px; height: 10px; }
+.desktop ::-webkit-scrollbar-thumb { background: #1f2b45; border-radius: 10px; border: 2px solid var(--bg); }
+.desktop ::-webkit-scrollbar-track { background: transparent; }
+
+/* this computer's workloads (Mining tab + Compute Share window) */
+.wl-item { border-top: 1px solid var(--line); padding: 10px 0; }
+.wl-item:first-child { border-top: 0; }
+.wl-log { max-height: 220px; overflow: auto; font: 12px var(--mono); white-space: pre-wrap; background: var(--bg); padding: 8px; border-radius: 8px; }
+.wl-days .check-row { margin: 4px 0; }
+.wl-form fieldset { border: 1px solid var(--line); border-radius: 10px; margin: 10px 0; }
+.share main { max-width: 760px; margin: 0 auto; padding: 18px 16px 40px; }
+.share .brand { margin-bottom: 12px; }
+.bar { display: flex; gap: 8px; flex-wrap: wrap; align-items: center; margin: 6px 0; }
+.bar h2, .bar h3 { margin: 0; }
+
+/* ---------- phone app (remote.html) ---------- */
+.remote { padding: env(safe-area-inset-top) 0 calc(76px + env(safe-area-inset-bottom)); font-size: 16px; }
+.remote main { padding: 12px; max-width: 640px; margin: 0 auto; }
+.remote .card { margin-bottom: 12px; padding: 16px; }
+.remote input, .remote select { font-size: 16px; } /* 16px stops iOS zooming into fields */
+.r-top { position: sticky; top: 0; z-index: 5; display: flex; gap: 10px; align-items: center; padding: 12px 14px; background: var(--panel); border-bottom: 1px solid var(--line); }
+.r-nav { position: fixed; left: 0; right: 0; bottom: 0; z-index: 5; display: grid; grid-template-columns: repeat(4, 1fr); background: var(--panel); border-top: 1px solid var(--line); padding-bottom: env(safe-area-inset-bottom); }
+.r-nav button { background: none; border: 0; color: var(--muted); font: 600 12px var(--sans); padding: 8px 0 10px; display: flex; flex-direction: column; align-items: center; gap: 2px; min-height: 56px; }
+.r-nav button span { font-size: 20px; line-height: 1; }
+.r-nav button[aria-selected="true"] { color: var(--accent); }
+.r-big { font: 700 32px var(--sans); margin: 2px 0; }
+.r-kv { display: grid; grid-template-columns: 1fr auto; gap: 4px 12px; margin-top: 10px; color: var(--muted); }
+.r-kv b { color: var(--text); text-align: right; }
+.r-row { display: flex; gap: 10px; align-items: center; justify-content: space-between; padding: 10px 0; border-top: 1px solid var(--line); }
+.r-row:first-of-type { border-top: 0; }
+.r-row > div:first-child { flex: 1; min-width: 0; overflow-wrap: anywhere; }
+.btn.big { width: 100%; min-height: 48px; margin-top: 10px; font-size: 16px; }
+.remote .btn.danger { background: #b3261e; border-color: #ff6b6b; color: #fff; }
+.remote .btn.warn { background: var(--warn); color: #111; }
+.r-seg { display: flex; margin: 8px 0; }
+.r-seg button { flex: 1; min-height: 44px; }
+.r-switch { position: relative; width: 52px; height: 30px; flex: none; }
+.r-switch input { position: absolute; opacity: 0; width: 100%; height: 100%; margin: 0; cursor: pointer; z-index: 1; }
+.r-switch span { position: absolute; inset: 0; border-radius: 30px; background: var(--line); transition: background .15s; }
+.r-switch span::after { content: ""; position: absolute; top: 3px; left: 3px; width: 24px; height: 24px; border-radius: 50%; background: #fff; transition: transform .15s; }
+.r-switch input:checked + span { background: var(--accent); }
+.r-switch input:checked + span::after { transform: translateX(22px); }
+.r-switch input:focus-visible + span { outline: 2px solid var(--accent2); outline-offset: 2px; }
+.remote .toast { bottom: calc(86px + env(safe-area-inset-bottom)); }
+.phone-qrs { display: flex; flex-wrap: wrap; gap: 16px; }
+.phone-qrs figure { margin: 0; text-align: center; }
+.phone-qrs img { width: 220px; height: 220px; border-radius: 10px; background: #fff; padding: 6px; }

@@ -1,9 +1,11 @@
 {
   "name": "stocksworks",
+  "productName": "StocksWorks",
   "version": "1.0.0",
   "private": true,
   "description": "Self-hosted AI-assisted stock + crypto trading desk, watch-only/self-custody wallet, mining economics and investor academy.",
   "type": "module",
+  "main": "electron/main.mjs",
   "engines": {
     "node": ">=22"
   },
@@ -13,13 +15,29 @@
     "new-totp": "node lib/cli.js new-totp",
     "new-secret": "node lib/cli.js new-secret",
     "test": "node --test",
-    "verify": "node --test && node --check server.js && node --check desktop.js && node --check rig/agent.js && node --check rig/ui.js && node --check public/app.js",
+    "verify": "node --test && node scripts/check-imports.mjs && node --check server.js && node --check desktop.js && node --check rig/agent.js && node --check rig/ui.js && node --check public/app.js && node --check public/workloads.js && node --check public/share.js && node --check public/remote.js && node --check public/ailab.js && node --check electron/main.mjs && node --check electron/setup.js && node --check electron/preload.cjs",
     "desktop": "node desktop.js",
     "rig": "node rig/agent.js",
     "make-cert": "node lib/cli.js make-cert",
-    "shortcuts": "powershell -NoProfile -ExecutionPolicy Bypass -File scripts/install-shortcuts.ps1"
+    "shortcuts": "powershell -NoProfile -ExecutionPolicy Bypass -File scripts/install-shortcuts.ps1",
+    "build:wallet": "esbuild lib/walletkit.js --bundle --format=esm --minify --legal-comments=external --target=es2022 --outfile=public/vendor/walletkit.js",
+    "app": "electron .",
+    "icon": "node scripts/make-icon.mjs",
+    "dist:win": "npm run build:wallet && npm run icon && electron-packager . StocksWorks --platform=win32 --arch=x64 --icon=build/icon.ico --out=dist --overwrite --asar --prune=true --app-copyright=\"StocksWorks\" --win32metadata.FileDescription=StocksWorks --win32metadata.ProductName=StocksWorks --ignore=\"^[\\\\/](data|dist|test|\\.playwright-mcp|rig|scripts|docs)([\\\\/]|$)\" --ignore=\"^[\\\\/]\\.env\" && node scripts/fuses.cjs"
   },
   "dependencies": {
-    "@anthropic-ai/sdk": "^1.13.0"
+    "@anthropic-ai/sdk": "^1.13.0",
+    "@noble/curves": "^2.4.0",
+    "@noble/hashes": "^2.4.0",
+    "@scure/base": "^2.4.0",
+    "@scure/bip32": "^2.4.0",
+    "@scure/bip39": "^2.4.0",
+    "qrcode": "^1.5.4"
+  },
+  "devDependencies": {
+    "@electron/fuses": "^2.1.3",
+    "@electron/packager": "^20.3.0",
+    "electron": "^45.4.1",
+    "esbuild": "^0.28.2"
   }
 }

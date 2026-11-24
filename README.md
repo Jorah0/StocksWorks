@@ -18,13 +18,47 @@ npm start                                              # http://127.0.0.1:8787
 npm run verify                                         # tests + syntax checks
 ```
 
-### Desktop app
+### Windows desktop app (.exe)
 
 ```bash
-npm run desktop      # starts the server and opens StocksWorks in its own app window; closing it stops the server
+npm run dist:win     # builds dist/StocksWorks-win32-x64/StocksWorks.exe (Electron; ~380 MB folder, no Node needed to run it)
+npm run app          # run the desktop app from source
+```
+
+Double-click `StocksWorks.exe`:
+- **First run:** a setup screen creates your passphrase, optional two-factor login (scan the QR code with your authenticator app), and optional Alpaca and Claude keys.
+- **Where settings live:** `%APPDATA%\StocksWorks` (settings file plus data), never inside the program folder.
+- **Changing keys later:** Integrations → **Desktop settings** (passphrase required; the app restarts itself).
+- **Window and tray:** the header doubles as the title bar. The tray icon opens the app, Compute Share, the browser view or the settings folder, and can pause all mining and sharing.
+- **Closing:** the close button minimizes to the taskbar, so mining and sharing keep their schedule. Quit from the tray. Turn this off, or turn on **start when I sign in to Windows**, under Integrations → **Window & startup**.
+- **Compute Share:** `StocksWorks.exe --share` opens just the Compute Share window (it's also in the tray and on the Mining tab).
+- **Hardening:** sandboxed, context-isolated renderer with no Node access, navigation locked to the app, links opening in your browser, and every permission prompt denied.
+- **Wallet extensions:** MetaMask and similar can't run inside the app. Use "Open StocksWorks in your browser" for those.
+
+If you launch it from a VS Code terminal, run `set ELECTRON_RUN_AS_NODE=` first, because VS Code sets a variable that makes Electron behave as plain Node.
+
+### Browser-window mode (no build)
+
+```bash
+npm run desktop      # starts the server and opens StocksWorks in an Edge/Chrome app window; closing it stops the server
 npm run shortcuts    # Windows: adds "StocksWorks" and "StocksWorks Rig" to the Desktop and Start Menu
 ```
 The window is Edge or Chrome in app mode with a dedicated profile (no browser chrome, no extra install). It falls back to your default browser if neither is found.
+
+### Mining and compute sharing on this computer (desktop app)
+
+- **Where:** Mining tab → **Mine on this computer**, or the **Compute Share** window.
+- **Program:** add XMRig for CPU or GPU (NVIDIA CUDA or AMD OpenCL), any other miner, the BOINC client, or another compute-sharing program that runs as a normal app.
+- **Approval:** you pick the `.exe` in a Windows file dialog and approve it with your passphrase. Its SHA-256 is recorded, and a program whose file changes is refused until you re-approve it.
+- **Rules per program:**
+  - on/off;
+  - active hours (overnight windows work);
+  - only while you're away (idle minutes);
+  - pause on battery;
+  - a daily-hours limit;
+  - for XMRig CPU, a CPU-thread cap (10-100%).
+- **Running:** programs run at below-normal priority with no shell, and their output shows in the app. Turning one off, or quitting StocksWorks, stops the program and its child processes.
+- **Payouts:** the pool or network pays the address or account you set up. StocksWorks never holds keys.
 
 ### Remote mining rigs ("Fleet")
 
@@ -47,16 +81,80 @@ Rig security:
 
 The app runs without keys. Mining, the crypto market, watch-only wallets, the Academy and Compare tabs all work on public data. The scanner and trading need Alpaca, and the AI analyst and tutor need Claude.
 
+### AI Lab: choose, teach, benchmark and design your own model
+
+The AI Lab tab follows the *Local AI Marketplace* handbook, scaled to this app.
+
+- **Your hardware:**
+  - live GPU readings per device (nvidia-smi), RAM, disk, CPU and the Python training tools;
+  - **workload profiles** (Idle, OBS live/gaming, or your own) that reserve memory, giving budget = free GPU memory − reserve;
+  - **Ollama hosts on your network** (`OLLAMA_HOST=0.0.0.0` on the other machine, then add `http://ip:11434`).
+- **Choose a model:**
+  - every model installed on every host, with an estimated VRAM range (weights + KV cache for your context and simultaneous requests + overhead) and % of GPU;
+  - a verdict: **Fits** (with GiB left), **Borderline**, **Too big** (with the shortfall) or **Unknown**;
+  - Hugging Face search (metadata only), with one-click **Install** of GGUF repos into Ollama;
+  - **Use** pins the exact model digest for the local analyst.
+- **Teach the analyst (the learning loop):**
+  - your local model and **Claude (premium teacher)** analyse the same evidence;
+  - the local model is held to the analyst JSON schema by Ollama structured output;
+  - you **accept, correct or reject** each answer;
+  - accepted and corrected answers form a downloadable SFT dataset (`/api/ai-lab/dataset.jsonl`, chat-format JSONL). It's split by symbol, so nothing leaks between train, dev and test, and duplicates are removed. Answers built on third-party news are kept out of training.
+  - Without a broker connection the evidence is clearly labelled synthetic practice data.
+- **Benchmark & pick the best:**
+  - runs several models on the same symbols and reports valid-JSON rate, agreement with your reviewed answers, and p50/p95 latency;
+  - a **transparent score** of 100 × Σ weight × normalized metric with weights you set;
+  - a model missing a measurement gets no rank rather than a guess.
+- **Design your own model:**
+  - set vocabulary, layers, width, heads, KV heads, head dimension, context and seed, or start from a preset;
+  - see the **exact parameter count**, training memory and served size against your hardware, and the updates and training time for a token budget once a pilot has measured your speed;
+  - **Build & verify** constructs it in Python with random weights (no downloads) and checks the count;
+  - **Train pilot** trains a tokenizer and the model on the Academy lessons, your journal and text you add, with live loss;
+  - **Export to Ollama** writes a GGUF and imports it as `sw-<name>`, and it then appears in the catalog like any other model.
+
+- **Training setup**: one click installs a private Python environment (`%LOCALAPPDATA%StocksWorkspyenv`, your system Python is untouched) with PyTorch for your NVIDIA GPU (CUDA 13.0 or 12.6, chosen from your driver) or CPU-only, plus transformers and peft. Choose how training runs: device (GPU/CPU), precision (bf16/fp16/fp32), gradient accumulation and gradient checkpointing.
+- **Fine-tune an existing model**: LoRA on a Hugging Face base (SmolLM2 135M/360M/1.7B suggested) using your reviewed examples. Loss counts only the answer, the dev split measures progress and the test split stays untouched. The adapter is merged and **Export to Ollama** keeps the chat format.
+- **Teach via AIs**: a teacher (Claude, or a bigger local model) labels a batch of symbols, either queued for your review or auto-accepted. Claude answers are kept out of training by default (Anthropic's terms restrict training AI models on its outputs); enable it only if your agreement allows. Local teachers: check the teacher model's license.
+
+Requirements: Ollama, plus Python 3.10+ for training (the setup button installs everything else). A home-made or 135M model mostly learns format and style; quality analysis still comes from larger models.
+
+### Phone app (remote control over Wi-Fi)
+
+1. On the PC, open Integrations → **Phone remote** → **Turn on phone access**. If Windows asks, allow StocksWorks on **private networks** only.
+2. Press **Pair a phone** and scan the QR code with your phone's camera. The code is one-time and valid for 10 minutes.
+3. The phone warns once that the certificate isn't trusted. It's StocksWorks' own self-signed certificate; its SHA-256 fingerprint is shown on the PC. Continue, then unlock with your passphrase (and authenticator code if 2FA is on).
+4. Install it: **Share → Add to Home Screen** on iPhone, or **⋮ → Add to Home screen** on Android. It opens full-screen like an app.
+
+What the phone can do:
+- **Home:** equity, today's P&L, positions (close), open orders (cancel), and the kill switch.
+- **Trade:** the same risk check, with live-mode 2FA and confirmation.
+- **Mining:** switch this PC's approved miners and compute-sharing programs on or off, pause all, and run or stop remote rigs.
+- **Alerts:** recent alerts.
+
+What it can't do: approve programs, pair other phones, reveal bank numbers, or change settings or keys. Those stay on the PC.
+
+Security:
+- Phone access is off by default and has its own TLS listener (port 8789, `PHONE_PORT`). The certificate is generated in-app, no openssl needed.
+- An unpaired device gets only the pairing page.
+- A paired phone holds a 90-day device token (HttpOnly, Secure, SameSite=Strict, stored hashed) **and** still needs your passphrase.
+- Requests are limited to a fixed allowlist of routes.
+- Removing a phone on the PC cuts it off on its next request.
+- Pairing attempts are rate-limited, and pairing, unpairing and phone-originated switches are audited.
+- **Away from home:** install [Tailscale](https://tailscale.com/download) on the PC and the phone, then pair using the PC's 100.x address. Don't port-forward 8789 to the internet.
+
 ## Tabs
 
 | Tab | What it does |
 |---|---|
 | Overview | Equity, day P/L, positions, recent orders, the top-scored setups and your active guardrails |
 | AI Scanner | Ranks your watchlist with a 0-100 score (trend 30, momentum 30, RSI zone 20, MACD 20) and a walk-forward backtest against buy-and-hold. Also opens the Claude analyst, with optional web research, which returns stance, confidence, entry, stop and target, risks, sources and a lesson |
-| Trade | Order ticket for stocks and crypto with a server-side risk preview. Live mode needs per-order confirmation |
-| Crypto & Wallet | Top 25 coins (CoinGecko), watch-only BTC/ETH address balances, and a browser-wallet (EIP-1193) connection that signs transactions in your wallet |
+| Trade | Order ticket for stocks and crypto with a server-side risk preview, stop-loss/take-profit brackets and a "Size by risk" position sizer. Live mode needs a fresh authenticator code per order |
+| Portfolio | Allocation and concentration, Sharpe/Sortino/volatility/max drawdown, a correlation heatmap of what you hold, close 25/50/100% of a position, trailing-stop protection, cancel open orders |
+| Strategy Lab | Backtest 4 strategies (composite score, SMA crossover, RSI mean reversion, Donchian breakout) with adjustable settings on ~3 years of data: CAGR, Sharpe, Sortino, drawdown, win rate, trades, all against buy-and-hold |
+| Alerts | Price-above/below, daily-move and AI-score alerts, checked every minute on the server; one-shot with re-arm; sent to Discord/Slack and an in-app feed |
+| Crypto & Wallet | Top 25 coins (CoinGecko), watch-only BTC/ETH balances, browser-wallet (EIP-1193) sending, and **wallet creation**: a 24-word BIP-39 phrase generated in your browser and never sent anywhere, verified, then its ETH and BTC addresses added to watch-only |
+| Banks | **Charles Schwab** direct (balances, positions; trading from the order ticket when SCHWAB_TRADING=on). Link US banks (balances; account and routing numbers for wires/ACH, revealed behind 2FA) and outside brokerages (Fidelity, Schwab, Robinhood… holdings) via Plaid; linked net worth; how to fund your trading account |
 | Mining | Profitability from live network hashrate and fees (mempool.space): rig presets, break-even electricity price, payback period and BTC price sensitivity |
-| Academy | 11 lessons with quizzes (progress saved locally), plus the Claude tutor |
+| Academy | 11 lessons with quizzes, the Claude tutor, and a **trade journal** (thesis, setup, emotion, outcome, lesson) with win rate and expectancy by setup and emotion |
 | Compare | Feature and price matrix against Trade Ideas, TrendSpider, Tickeron, Danelfin, Composer, Public, TradingView and Coinbase, with sources |
 | Integrations | Connection status, webhook formats, key links and the tamper-evident audit log |
 
@@ -107,6 +205,11 @@ Webhooks only notify unless `WEBHOOK_TRADING=on`. Webhook orders pass the same r
 - **Login hardening:** authenticator codes can't be replayed, and expired sessions are swept every 10 minutes.
 - **Wallet addresses:** Ethereum addresses are validated with EIP-55 checksums (Keccak-256, `lib/keccak.js`), so a mistyped address is rejected. Sending warns and requires a tick when the wallet isn't on Ethereum mainnet.
 - **Records:** Integrations → **Export orders CSV** downloads every placed or rejected order for tax records. Cells are escaped against spreadsheet formula injection. The Overview shows a 3-month equity curve.
+
+- **Wallet creation:** the recovery phrase is generated in the browser by audited libraries (`@scure/bip39`, `@scure/bip32`, `@noble/curves`, `@noble/hashes`) from the platform's secure random generator. It's shown only on screen (copying is discouraged), checked by asking for 3 random words, then cleared. It's never sent to the server, stored or logged. Derivation paths are standard: ETH `m/44'/60'/0'/0/0` (MetaMask, Rabby, Trust) and BTC `m/84'/0'/0'/0/0` (Sparrow, Electrum), verified against the official BIP-84 and MetaMask test vectors. After `npm install`, rebuild the browser bundle with `npm run build:wallet`.
+- **Bank linking:** you sign in to your bank inside Plaid's window, so StocksWorks never sees bank passwords. Plaid access tokens are encrypted at rest with AES-256-GCM (`BANK_ENCRYPTION_KEY`, required, or the server refuses to start). Account numbers are masked. Revealing full account and routing numbers needs a fresh authenticator code, is rate-limited and audited, and the numbers hide after 60 seconds. The page loads Plaid's script only when Plaid is configured.
+- **Schwab:** OAuth sign-in happens at Schwab; you paste back the redirect address. Tokens are sealed with the same AES-256-GCM key, and the browser sees only a masked account number and Schwab's opaque account hash. Schwab has no paper mode, so every Schwab order is treated as live: it needs SCHWAB_TRADING=on, TOTP, a passing risk check whose token is bound to that exact order, broker and account, a fresh authenticator code, and it counts toward the same daily caps. Webhooks can never place Schwab orders.
+- **What it can't do:** move money between banks. That needs Plaid Transfer (approval required) or a bank's own API, and Alpaca's retail API has no deposit endpoint. The Banks tab shows how to fund by ACH or wire through Alpaca's dashboard instead.
 
 **Not included, and why:** in-browser crypto mining (unprofitable for BTC and indistinguishable from cryptojacking); storing private keys (a hot-key server is the most common way people lose crypto); fully autonomous AI trading (only webhook rules you write can trade unattended, and they pass the risk gate).
 

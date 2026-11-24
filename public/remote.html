@@ -1,0 +1,30 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+  <meta name="referrer" content="no-referrer">
+  <meta name="theme-color" content="#070c17">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+  <meta name="apple-mobile-web-app-title" content="StocksWorks">
+  <title>StocksWorks Remote</title>
+  <link rel="manifest" href="/manifest.webmanifest">
+  <link rel="icon" href="/favicon.svg" type="image/svg+xml">
+  <link rel="apple-touch-icon" href="/icon.png">
+  <link rel="stylesheet" href="/app.css">
+  <script type="module" src="/remote.js"></script>
+</head>
+<body class="remote">
+  <header class="r-top"><div class="brand"><span class="logo">◆</span> StocksWorks</div><span id="rMode"></span><span class="spacer"></span><button class="btn ghost" id="rLock" type="button" hidden>Lock</button></header>
+  <main id="rView"><div class="empty">Connecting…</div></main>
+  <nav class="r-nav" id="rNav" hidden>
+    <button type="button" data-tab="home" aria-selected="true"><span>⌂</span>Home</button>
+    <button type="button" data-tab="trade"><span>⇅</span>Trade</button>
+    <button type="button" data-tab="mining"><span>⛏</span>Mining</button>
+    <button type="button" data-tab="alerts"><span>◔</span>Alerts</button>
+  </nav>
+  <div id="toast" class="toast" role="status" hidden></div>
+</body>
+</html>

@@ -1,0 +1,9 @@
+body { display: block; background: radial-gradient(ellipse at top, #0f1e3a, var(--bg) 60%); }
+.setup { max-width: 600px; margin: 0 auto; padding: 28px 20px 40px; display: grid; gap: 14px; }
+.setup form { display: grid; gap: 14px; }
+.setup .card h3 { margin-bottom: 6px; }
+.twofa { display: flex; gap: 16px; align-items: center; margin-top: 8px; }
+.twofa img { border-radius: 10px; background: #fff; padding: 6px; flex: 0 0 auto; }
+.key { font-size: 15px; letter-spacing: 1px; word-break: break-all; color: var(--text); }
+.btn.wide { width: 100%; padding: 13px; font-size: 14px; }
+.key { font-size: 14px; letter-spacing: 0.5px; white-space: nowrap; }

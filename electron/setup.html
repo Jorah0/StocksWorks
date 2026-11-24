@@ -1,0 +1,46 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta http-equiv="Content-Security-Policy" content="default-src 'none'; script-src 'self'; style-src 'self'; img-src 'self' data:">
+  <title>Set up StocksWorks</title>
+  <link rel="stylesheet" href="../public/app.css">
+  <link rel="stylesheet" href="setup.css">
+  <script src="setup.js" defer></script>
+</head>
+<body>
+  <main class="setup">
+    <div class="brand big"><span class="logo">◆</span> StocksWorks</div>
+    <p class="muted">Welcome. This takes about a minute. Everything stays on this computer, in your Windows profile.</p>
+
+    <form id="f" autocomplete="off">
+      <section class="card">
+        <h3>1 · Choose a passphrase</h3>
+        <p class="muted tiny">It unlocks the app. At least 12 characters; a few random words works well. It can't be recovered, so store it in a password manager.</p>
+        <label>Passphrase<input type="password" name="password" minlength="12" required></label>
+        <label>Confirm passphrase<input type="password" name="confirm" minlength="12" required></label>
+      </section>
+
+      <section class="card">
+        <h3>2 · Two-factor login (recommended)</h3>
+        <label class="check-row"><input type="checkbox" name="enable2fa" id="en2fa" checked> <span>Use an authenticator app (Google Authenticator, Microsoft Authenticator, 1Password, Authy…). Required later for live trading and for revealing bank account numbers.</span></label>
+        <div id="twofa" class="twofa">
+          <img id="qr" alt="QR code for your authenticator app" width="180" height="180">
+          <div><p class="tiny muted">Scan the code, or enter this key manually:</p><p class="mono key" id="secret"></p>
+            <label>Then enter the 6-digit code it shows<input name="totpCode" inputmode="numeric" maxlength="6" pattern="\d{6}"></label></div>
+        </div>
+      </section>
+
+      <section class="card">
+        <h3>3 · Connect services (optional, can be added later)</h3>
+        <p class="muted tiny">Free Alpaca paper-trading keys: app.alpaca.markets · Claude API key: console.anthropic.com. The app starts in paper mode with no real money.</p>
+        <div class="row"><label>Alpaca key ID<input name="alpacaKey" spellcheck="false"></label><label>Alpaca secret<input type="password" name="alpacaSecret" spellcheck="false"></label></div>
+        <label>Anthropic (Claude) API key<input type="password" name="anthropicKey" spellcheck="false"></label>
+      </section>
+
+      <p id="err" class="err" role="alert"></p>
+      <button class="btn primary wide" type="submit" id="go">Finish setup and open StocksWorks</button>
+    </form>
+  </main>
+</body>
+</html>
