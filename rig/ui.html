@@ -1,0 +1,58 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="ui-token" content="__UI_TOKEN__">
+  <title>StocksWorks Rig</title>
+  <link rel="icon" href="data:,">
+  <link rel="stylesheet" href="/ui.css">
+  <script type="module" src="/ui.js"></script>
+</head>
+<body>
+  <header><b><span class="logo">◆</span> StocksWorks Rig</b><span id="pill" class="pill">…</span></header>
+  <main>
+    <section class="hero">
+      <div><div class="k">Hashrate</div><div id="hr" class="big">—</div></div>
+      <div><div class="k">Uptime</div><div id="up" class="big">—</div></div>
+    </section>
+    <p id="why" class="muted"></p>
+    <div class="row"><button id="startBtn" class="btn primary" type="button">Start mining</button><button id="stopBtn" class="btn" type="button">Stop</button></div>
+
+    <section id="pairBox">
+      <h2>1 · Link to your StocksWorks host</h2>
+      <p class="muted">On the host: Mining → Fleet → "Add a rig". Paste the one-time link here. It expires in 10 minutes.</p>
+      <form id="pairForm"><input name="link" placeholder="swrig:…" required autocomplete="off" spellcheck="false"><input name="name" placeholder="Rig name (optional)" maxlength="32"><button class="btn" type="submit">Link</button></form>
+    </section>
+    <section id="linkedBox" hidden>
+      <h2>Linked host</h2>
+      <p><span id="hostUrl" class="mono"></span><br><span class="muted">Cert pin </span><span id="fp" class="mono tiny"></span></p>
+      <p id="poolInfo" class="muted"></p>
+      <button id="unpairBtn" class="btn ghost" type="button">Unlink</button>
+    </section>
+
+    <section>
+      <h2>2 · This machine's permissions</h2>
+      <label class="check"><input type="checkbox" id="consentMining"> Allow mining on this computer</label>
+      <label class="check"><input type="checkbox" id="remoteControl"> Let the host start and stop mining</label>
+      <p class="muted tiny">Mining uses electricity and produces heat. Only run it on hardware you own or are permitted to use. Closing this window stops mining.</p>
+    </section>
+
+    <section>
+      <h2>3 · Miner program</h2>
+      <form id="setForm">
+        <label>Path to miner (e.g. C:\xmrig\xmrig.exe)<input name="minerPath" autocomplete="off" spellcheck="false"></label>
+        <details><summary>Advanced</summary>
+          <label>Arguments <span class="muted tiny">{pool} {payout} {pass} {worker} {apiPort}</span><textarea name="argsTemplate" rows="3" spellcheck="false"></textarea></label>
+          <label>Miner stats API port<input name="apiPort" inputmode="numeric"></label>
+        </details>
+        <button class="btn" type="submit">Save</button>
+      </form>
+      <p class="muted tiny">Get XMRig from the official release page: <span class="mono">github.com/xmrig/xmrig/releases</span>. Verify the checksum before running it.</p>
+    </section>
+
+    <section><h2>Activity</h2><pre id="log"></pre></section>
+  </main>
+  <div id="toast" role="status" aria-live="polite"></div>
+</body>
+</html>

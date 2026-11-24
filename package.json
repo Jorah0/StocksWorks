@@ -1,0 +1,25 @@
+{
+  "name": "stocksworks",
+  "version": "1.0.0",
+  "private": true,
+  "description": "Self-hosted AI-assisted stock + crypto trading desk, watch-only/self-custody wallet, mining economics and investor academy.",
+  "type": "module",
+  "engines": {
+    "node": ">=22"
+  },
+  "scripts": {
+    "start": "node --env-file-if-exists=.env server.js",
+    "hash-password": "node lib/cli.js hash-password",
+    "new-totp": "node lib/cli.js new-totp",
+    "new-secret": "node lib/cli.js new-secret",
+    "test": "node --test",
+    "verify": "node --test && node --check server.js && node --check desktop.js && node --check rig/agent.js && node --check rig/ui.js && node --check public/app.js",
+    "desktop": "node desktop.js",
+    "rig": "node rig/agent.js",
+    "make-cert": "node lib/cli.js make-cert",
+    "shortcuts": "powershell -NoProfile -ExecutionPolicy Bypass -File scripts/install-shortcuts.ps1"
+  },
+  "dependencies": {
+    "@anthropic-ai/sdk": "^1.13.0"
+  }
+}

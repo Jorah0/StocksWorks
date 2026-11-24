@@ -1,0 +1,60 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="referrer" content="no-referrer">
+  <title>StocksWorks</title>
+  <link rel="icon" href="/favicon.svg" type="image/svg+xml">
+  <link rel="stylesheet" href="/app.css">
+  <script type="module" src="/app.js"></script>
+</head>
+<body>
+  <div id="login" class="login" hidden>
+    <form id="loginForm" class="card login-card" autocomplete="on">
+      <div class="brand big"><span class="logo">◆</span> StocksWorks</div>
+      <p class="muted">Self-hosted AI trading desk. Local access only.</p>
+      <label>Passphrase <input type="password" name="password" autocomplete="current-password" required></label>
+      <label id="totpRow" hidden>Authenticator code <input name="totp" inputmode="numeric" pattern="\d{6}" maxlength="6" autocomplete="one-time-code"></label>
+      <button class="btn primary" type="submit">Unlock</button>
+      <p id="loginErr" class="err" role="alert"></p>
+    </form>
+  </div>
+
+  <header class="top">
+    <div class="brand"><span class="logo">◆</span> StocksWorks</div>
+    <span id="modeBadge" class="badge">…</span>
+    <span class="spacer"></span>
+    <button id="killBtn" class="btn danger" type="button" title="Cancel open orders and block all trading">Kill switch</button>
+    <button id="logoutBtn" class="btn ghost" type="button">Lock</button>
+  </header>
+
+  <nav class="tabs" role="tablist">
+    <button role="tab" data-tab="overview" aria-selected="true">Overview</button>
+    <button role="tab" data-tab="scanner">AI Scanner</button>
+    <button role="tab" data-tab="trade">Trade</button>
+    <button role="tab" data-tab="crypto">Crypto &amp; Wallet</button>
+    <button role="tab" data-tab="mining">Mining</button>
+    <button role="tab" data-tab="academy">Academy</button>
+    <button role="tab" data-tab="compare">Compare</button>
+    <button role="tab" data-tab="integrations">Integrations</button>
+  </nav>
+
+  <main>
+    <section id="tab-overview" class="tab"></section>
+    <section id="tab-scanner" class="tab" hidden></section>
+    <section id="tab-trade" class="tab" hidden></section>
+    <section id="tab-crypto" class="tab" hidden></section>
+    <section id="tab-mining" class="tab" hidden></section>
+    <section id="tab-academy" class="tab" hidden></section>
+    <section id="tab-compare" class="tab" hidden></section>
+    <section id="tab-integrations" class="tab" hidden></section>
+  </main>
+
+  <footer class="foot muted">
+    Education and tooling, not financial advice. Scores rank historical setups; they do not predict prices.
+    Paper trade first. Never share a seed phrase with anyone, including this app.
+  </footer>
+  <div id="toast" class="toast" role="status" aria-live="polite"></div>
+</body>
+</html>
