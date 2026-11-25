@@ -152,7 +152,14 @@ details.why summary { font-weight: 500; }
 .remote .card { margin-bottom: 12px; padding: 16px; }
 .remote input, .remote select { font-size: 16px; } /* 16px stops iOS zooming into fields */
 .r-top { position: sticky; top: 0; z-index: 5; display: flex; gap: 10px; align-items: center; padding: 12px 14px; background: var(--panel); border-bottom: 1px solid var(--line); }
-.r-nav { position: fixed; left: 0; right: 0; bottom: 0; z-index: 5; display: grid; grid-template-columns: repeat(4, 1fr); background: var(--panel); border-top: 1px solid var(--line); padding-bottom: env(safe-area-inset-bottom); }
+.totp-mini { width: 5.5em; text-align: center; letter-spacing: .1em; }
+.checks-box { border: 1px solid var(--line); border-radius: 10px; padding: 8px 12px; margin: 10px 0; }
+.r-col { display: flex; flex-direction: column; align-items: flex-end; gap: 6px; }
+.r-check { cursor: pointer; }
+.r-chips { display: flex; flex-wrap: wrap; gap: 6px; margin: 8px 0; }
+.r-ai { border: 1px solid var(--line); border-radius: 10px; padding: 10px; margin-top: 10px; }
+.remote textarea { width: 100%; box-sizing: border-box; margin: 6px 0; }
+.r-nav { position: fixed; left: 0; right: 0; bottom: 0; z-index: 5; display: grid; grid-template-columns: repeat(6, 1fr); background: var(--panel); border-top: 1px solid var(--line); padding-bottom: env(safe-area-inset-bottom); }
 .r-nav button { background: none; border: 0; color: var(--muted); font: 600 12px var(--sans); padding: 8px 0 10px; display: flex; flex-direction: column; align-items: center; gap: 2px; min-height: 56px; }
 .r-nav button span { font-size: 20px; line-height: 1; }
 .r-nav button[aria-selected="true"] { color: var(--accent); }
@@ -178,3 +185,10 @@ details.why summary { font-weight: 500; }
 .phone-qrs { display: flex; flex-wrap: wrap; gap: 16px; }
 .phone-qrs figure { margin: 0; text-align: center; }
 .phone-qrs img { width: 220px; height: 220px; border-radius: 10px; background: #fff; padding: 6px; }
+
+/* research + autopilot */
+th.sort { cursor: pointer; user-select: none; } th.sort:hover { color: var(--text); }
+.ap-slot { border: 1px solid var(--line); border-radius: 10px; margin: 8px 0; padding: 8px 12px; }
+#apForm fieldset { border: 1px solid var(--line); border-radius: 10px; margin: 10px 0; }
+#apTasks .notice, #apForm .notice { margin: 6px 0; }
+#rsTr { margin-top: 12px; }

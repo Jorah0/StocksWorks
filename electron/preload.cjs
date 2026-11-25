@@ -16,5 +16,6 @@ contextBridge.exposeInMainWorld('desktop', {
   getPrefs: () => ipcRenderer.invoke('desktop:prefs:get'),
   setPrefs: (p) => ipcRenderer.invoke('desktop:prefs:set', p),
   openShare: () => ipcRenderer.invoke('desktop:openShare'),
+  openPhone: (device) => ipcRenderer.invoke('desktop:openPhone', String(device ?? 'iphone')),
 });
 window.addEventListener('DOMContentLoaded', () => document.documentElement.classList.add('desktop'));

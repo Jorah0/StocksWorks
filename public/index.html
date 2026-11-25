@@ -25,6 +25,7 @@
     <div class="brand"><span class="logo">◆</span> StocksWorks</div>
     <span id="modeBadge" class="badge">…</span>
     <span class="spacer"></span>
+    <input id="killTotp" class="totp-mini" inputmode="numeric" maxlength="6" autocomplete="one-time-code" placeholder="2FA" aria-label="Authenticator code (live mode: needed to resume trading or close all positions)" hidden>
     <button id="killBtn" class="btn danger" type="button" title="Cancel open orders and block all trading">Kill switch</button>
     <button id="logoutBtn" class="btn ghost" type="button">Lock</button>
   </header>
@@ -32,10 +33,12 @@
   <nav class="tabs" role="tablist">
     <button role="tab" data-tab="overview" aria-selected="true">Overview</button>
     <button role="tab" data-tab="scanner">AI Scanner</button>
+    <button role="tab" data-tab="research">Research</button>
     <button role="tab" data-tab="trade">Trade</button>
     <button role="tab" data-tab="portfolio">Portfolio</button>
     <button role="tab" data-tab="lab">Strategy Lab</button>
     <button role="tab" data-tab="alerts">Alerts</button>
+    <button role="tab" data-tab="autopilot">Autopilot</button>
     <button role="tab" data-tab="crypto">Crypto &amp; Wallet</button>
     <button role="tab" data-tab="banks">Banks</button>
     <button role="tab" data-tab="mining">Mining</button>
@@ -48,10 +51,12 @@
   <main>
     <section id="tab-overview" class="tab"></section>
     <section id="tab-scanner" class="tab" hidden></section>
+    <section id="tab-research" class="tab" hidden></section>
     <section id="tab-trade" class="tab" hidden></section>
     <section id="tab-portfolio" class="tab" hidden></section>
     <section id="tab-lab" class="tab" hidden></section>
     <section id="tab-alerts" class="tab" hidden></section>
+    <section id="tab-autopilot" class="tab" hidden></section>
     <section id="tab-crypto" class="tab" hidden></section>
     <section id="tab-banks" class="tab" hidden></section>
     <section id="tab-mining" class="tab" hidden></section>

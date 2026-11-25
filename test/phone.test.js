@@ -70,6 +70,19 @@ test('phone remote: off by default, pairing required, least-privilege routes, re
   for (const blocked of ['/api/phone', '/api/banks', '/api/audit']) assert.equal((await phone('GET', blocked)).status, 403, `${blocked} not exposed to the phone`);
   assert.equal((await phone('POST', '/api/phone/pair', {}, csrf)).status, 403, 'a phone cannot pair more devices');
   assert.equal((await phone('GET', '/api/desktop/workloads')).status, 409, 'workloads exist only inside the desktop app');
+  // Full mobile app: autopilot (what runs when), research, markets and wallets are reachable...
+  const ap = await phone('GET', '/api/autopilot');
+  assert.equal(ap.status, 200, 'autopilot visible on the phone');
+  assert.ok(ap.json.activities.mine);
+  assert.equal((await phone('POST', '/api/autopilot/focus', { mode: 'manual', manual: ['track', 'learn'] }, csrf)).json.allowedNow.sort().join(), 'learn,track', 'phone can switch what runs');
+  for (const ok of ['/api/research/sources', '/api/research/traders', '/api/wallets', '/api/chains']) assert.equal((await phone('GET', ok)).status, 200, `${ok} on the phone`);
+  // ...but creating trading tasks and adding wallets stay on the PC.
+  assert.equal((await phone('POST', '/api/autopilot/tasks', { kind: 'track', name: 'x', everyMin: 30 }, csrf)).status, 403, 'tasks are created on the PC');
+  assert.equal((await phone('POST', '/api/wallets', { chain: 'btc', address: 'bc1qcr8te4kr609gcawutmrza0j4xv80jy8z306fyu' }, csrf)).status, 403, 'wallets are added on the PC');
+  const made = await desk('POST', '/api/autopilot/tasks', { kind: 'dca', name: 'Weekly SPY', symbol: 'SPY', amountUsd: 10, action: 'trade', enabled: false, cadence: { every: 'week', weekday: 1, at: '10:00' } });
+  assert.equal(made.status, 200, JSON.stringify(made.json));
+  const taskId = made.json.tasks[0].id;
+  assert.equal((await phone('POST', '/api/autopilot/tasks/run', { id: taskId }, csrf)).status, 409, 'a switched-off order-placing task cannot be fired from the phone');
 
   const devices = (await desk('GET', '/api/phone')).json.devices;
   assert.deepEqual(devices.map((d) => d.name), ['Test phone']);

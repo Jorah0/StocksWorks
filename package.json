@@ -15,15 +15,17 @@
     "new-totp": "node lib/cli.js new-totp",
     "new-secret": "node lib/cli.js new-secret",
     "test": "node --test",
-    "verify": "node --test && node scripts/check-imports.mjs && node --check server.js && node --check desktop.js && node --check rig/agent.js && node --check rig/ui.js && node --check public/app.js && node --check public/workloads.js && node --check public/share.js && node --check public/remote.js && node --check public/ailab.js && node --check electron/main.mjs && node --check electron/setup.js && node --check electron/preload.cjs",
+    "verify": "node --test && node scripts/check-imports.mjs && node --check server.js && node --check desktop.js && node --check rig/agent.js && node --check rig/ui.js && node --check public/app.js && node --check public/workloads.js && node --check public/share.js && node --check public/remote.js && node --check public/ailab.js && node --check public/research.js && node --check public/autopilot.js && node --check public/intel.js && node --check electron/main.mjs && node --check electron/setup.js && node --check electron/preload.cjs",
     "desktop": "node desktop.js",
     "rig": "node rig/agent.js",
     "make-cert": "node lib/cli.js make-cert",
     "shortcuts": "powershell -NoProfile -ExecutionPolicy Bypass -File scripts/install-shortcuts.ps1",
     "build:wallet": "esbuild lib/walletkit.js --bundle --format=esm --minify --legal-comments=external --target=es2022 --outfile=public/vendor/walletkit.js",
     "app": "electron .",
+    "phone": "electron . --phone",
+    "phone:test": "node scripts/emulate-phone.mjs",
     "icon": "node scripts/make-icon.mjs",
-    "dist:win": "npm run build:wallet && npm run icon && electron-packager . StocksWorks --platform=win32 --arch=x64 --icon=build/icon.ico --out=dist --overwrite --asar --prune=true --app-copyright=\"StocksWorks\" --win32metadata.FileDescription=StocksWorks --win32metadata.ProductName=StocksWorks --ignore=\"^[\\\\/](data|dist|test|\\.playwright-mcp|rig|scripts|docs)([\\\\/]|$)\" --ignore=\"^[\\\\/]\\.env\" && node scripts/fuses.cjs"
+    "dist:win": "npm run build:wallet && npm run icon && electron-packager . StocksWorks --platform=win32 --arch=x64 --icon=build/icon.ico --out=dist --overwrite --asar --prune=true --app-copyright=\"StocksWorks\" --win32metadata.FileDescription=StocksWorks --win32metadata.ProductName=StocksWorks --ignore=\"^[\\\\/](data|dist|test|\\.playwright-mcp|\\.mypy_cache|\\.ruff_cache|rig|scripts|docs)([\\\\/]|$)\" --ignore=\"^[\\\\/]\\.env\" && node scripts/fuses.cjs"
   },
   "dependencies": {
     "@anthropic-ai/sdk": "^1.13.0",

@@ -5,6 +5,9 @@ import { isValidEthAddress } from '/lib/keccak.js';
 import { LESSONS, COMPARE, COMPARE_COLS, COMPARE_SOURCES, LINKS } from '/content.js';
 import { mountWorkloads } from '/workloads.js';
 import { mountAiLab } from '/ailab.js';
+import { mountResearch } from '/research.js';
+import { mountAutopilot } from '/autopilot.js';
+import { checksHtml } from '/intel.js';
 
 const $ = (s, r = document) => r.querySelector(s);
 const $$ = (s, r = document) => [...r.querySelectorAll(s)];
@@ -96,13 +99,17 @@ function renderHeader() {
   const k = $('#killBtn');
   k.textContent = status.killSwitch ? 'Resume trading' : 'Kill switch';
   k.classList.toggle('on', Boolean(status.killSwitch));
+  $('#killTotp').hidden = status.mode !== 'live'; // live: resuming or closing everything needs a fresh code
 }
 $('#killBtn').addEventListener('click', async () => {
   const on = !status.killSwitch;
   let flatten = false;
   if (on) flatten = $('#flattenChk')?.checked ?? false;
+  const totp = $('#killTotp').value.trim();
+  if (status.mode === 'live' && (!on || flatten) && !/^\d{6}$/.test(totp)) { toast('Live mode: type your authenticator code in the box next to the button first', true); $('#killTotp').focus(); return; }
   try {
-    const r = await api('/api/kill', { method: 'POST', body: { on, flatten } });
+    const r = await api('/api/kill', { method: 'POST', body: { on, flatten, totp } });
+    $('#killTotp').value = '';
     status.killSwitch = r.killSwitch;
     renderHeader();
     toast(on ? `Trading halted. ${r.actions.join(', ')}` : 'Trading resumed');
@@ -110,7 +117,8 @@ $('#killBtn').addEventListener('click', async () => {
 });
 
 // ---------------- tabs ----------------
-const loaders = { overview: loadOverview, scanner: loadScanner, trade: loadTrade, portfolio: loadPortfolio, lab: loadLab, alerts: loadAlerts, crypto: loadCrypto, banks: loadBanks, mining: loadMining, ailab: () => mountAiLab($('#tab-ailab'), { api, esc, toast, stat }), academy: loadAcademy, compare: loadCompare, integrations: loadIntegrations };
+const openSymbol = (sym) => { openTab('scanner'); loadDetail(sym); };
+const loaders = { overview: loadOverview, scanner: loadScanner, research: () => mountResearch($('#tab-research'), { api, esc, toast, openSymbol }), autopilot: () => mountAutopilot($('#tab-autopilot'), { api, esc, toast }), trade: loadTrade, portfolio: loadPortfolio, lab: loadLab, alerts: loadAlerts, crypto: loadCrypto, banks: loadBanks, mining: loadMining, ailab: () => mountAiLab($('#tab-ailab'), { api, esc, toast, stat }), academy: loadAcademy, compare: loadCompare, integrations: loadIntegrations };
 function openTab(name) {
   $$('.tabs button').forEach((b) => b.setAttribute('aria-selected', String(b.dataset.tab === name)));
   $$('.tab').forEach((s) => (s.hidden = s.id !== `tab-${name}`));
@@ -140,6 +148,8 @@ async function desktopSettingsCard() {
       <label>Environment<select name="PLAID_ENV"><option value="">keep (${esc(s.plaidEnv)})</option><option>sandbox</option><option>production</option></select></label></div>
     <h3>Charles Schwab (<a href="https://developer.schwab.com/" target="_blank" rel="noopener noreferrer">developer.schwab.com</a>, callback URL <code>https://127.0.0.1</code>)</h3>
     <div class="row">${field('SCHWAB_CLIENT_ID', 'App key', 'text')}${field('SCHWAB_CLIENT_SECRET', 'Secret')}</div>
+    <h3>Research sources (Research tab, AI learning)</h3>
+    <div class="row">${field('FINVIZ_AUTH_TOKEN', 'Finviz Elite API token')}${field('MESSARI_API_KEY', 'Messari API key')}</div>
     <h3>Notifications</h3>${field('NOTIFY_WEBHOOK_URL', 'Discord or Slack webhook URL')}
     <label>Your StocksWorks passphrase (required to save)<input name="passphrase" type="password" autocomplete="current-password" required></label>
     <div class="row"><button class="btn primary" type="submit">Save &amp; restart</button><button class="btn ghost" type="button" id="dsFolder">Open settings folder</button></div>
@@ -160,6 +170,10 @@ async function phoneCard() {
         <span class="mono">${esc(p.fingerprint)}</span>. If it doesn't, stop: something on your network may be intercepting. Pair only on a network you trust (or over Tailscale).
         If Windows asks, allow StocksWorks on <b>private networks</b> only.</p>
       <button class="btn primary" type="button" data-ph="pair">Pair a phone</button><div id="phPair"></div>` : ''}
+    ${window.desktop?.openPhone ? `<div class="bar"><h3>Phone emulator</h3><span class="spacer"></span>
+        <select id="phDev" aria-label="Device"><option value="iphone">iPhone 15</option><option value="pixel">Pixel 8</option><option value="galaxy">Galaxy S23</option><option value="ipad">iPad mini</option></select>
+        <button class="btn" type="button" data-ph="emu">Open phone emulator</button></div>
+      <p class="muted tiny">Test the phone app on this PC: the same app, listener, pairing and limits a real phone gets, in a phone-sized touch window. Opening it turns phone access on and pairs the emulator once.</p>` : ''}
     ${p.devices.length ? `<h3>Paired phones</h3><div class="scroll"><table><tr><th>Name</th><th>Paired</th><th>Last used</th><th></th></tr>
       ${p.devices.map((d) => `<tr><td>${esc(d.name)}</td><td>${esc(when(d.pairedAt))}</td><td>${esc(when(d.lastSeen))}</td><td><button class="btn ghost" type="button" data-ph="remove" data-id="${esc(d.id)}">Remove</button></td></tr>`).join('')}</table></div>` : ''}</div>`;
 }
@@ -288,6 +302,7 @@ async function runAi(sym, web) {
       <div class="grid"><div><h3>Catalysts</h3><ul>${a.catalysts.map((c) => `<li>${esc(c)}</li>`).join('')}</ul></div><div><h3>Risks</h3><ul>${a.risks.map((c) => `<li>${esc(c)}</li>`).join('')}</ul></div></div>
       <p><b>Sizing:</b> ${esc(a.positionSizing)}</p>
       <div class="lesson"><b>Lesson:</b> ${esc(a.lesson)}</div>
+      ${checksHtml(a.checks, esc)}
       ${a.sources.length ? `<h3>Web sources</h3><ul>${a.sources.map((s) => `<li><a href="${esc(safeUrl(s.url))}" target="_blank" rel="noopener noreferrer">${esc(s.title || s.url)}</a></li>`).join('')}</ul>` : ''}
       ${a.news.length ? `<h3>Recent headlines</h3><ul>${a.news.slice(0, 6).map((n) => `<li><a href="${esc(safeUrl(n.url))}" target="_blank" rel="noopener noreferrer">${esc(n.headline)}</a> <span class="muted">${esc(n.source)}</span></li>`).join('')}</ul>` : ''}
       <p class="muted">Model: ${esc(a.model)}. AI output is research, not advice. Verify sources and size by your own stop.</p>
@@ -442,7 +457,8 @@ async function loadCrypto() {
   el.innerHTML = `<div class="grid two"><div class="card"><h2>Crypto market</h2><div id="cgTable" class="scroll"><div class="empty">Loading…</div></div><p class="muted">Data: CoinGecko. Trade majors (BTC/USD, ETH/USD, SOL/USD…) from the Trade tab via Alpaca.</p></div>
     <div><div class="card"><h2>Watch-only wallets</h2><p class="muted">Public addresses only. Balances read from the blockchain; no keys are stored.</p>
       <form id="wForm" class="row"><label>Chain<select name="chain"><option value="btc">Bitcoin</option><option value="eth">Ethereum</option></select></label>
-        <label>Address<input name="address" required autocomplete="off" spellcheck="false"></label><label>Label<input name="label" maxlength="40"></label><button class="btn" type="submit">Watch</button></form>
+        <label>Address<input name="address" required autocomplete="off" spellcheck="false"></label><label>Label<input name="label" maxlength="40"></label>
+        <label data-token hidden>Token contract (ERC-20, optional)<input name="token" autocomplete="off" spellcheck="false" placeholder="0x…"></label><button class="btn" type="submit">Watch</button></form>
       <div id="wList"></div></div>
     <div class="card"><h2>Self-custody: browser wallet</h2>
       <p class="muted">Transactions are signed inside your wallet extension (MetaMask, Rabby, Coinbase Wallet). StocksWorks never sees a private key or seed phrase.</p>
@@ -452,10 +468,22 @@ async function loadCrypto() {
       ${rows.map((c) => `<tr><td>${esc(c.market_cap_rank)}</td><td><b>${esc(c.symbol?.toUpperCase())}</b> <span class="muted">${esc(c.name)}</span></td><td class="num">${usd(c.current_price)}</td>
       <td class="num ${cls(c.price_change_percentage_24h_in_currency)}">${fmt(c.price_change_percentage_24h_in_currency)}%</td><td class="num ${cls(c.price_change_percentage_7d_in_currency)}">${fmt(c.price_change_percentage_7d_in_currency)}%</td><td class="num">${usd(c.market_cap, 0)}</td></tr>`).join('')}</table>`;
   }).catch(fail($('#cgTable')));
+  let chains = [{ id: 'btc', tokens: false }, { id: 'eth', tokens: true }];
+  const syncToken = () => { const f = $('#wForm'); f.querySelector('[data-token]').hidden = !chains.find((c) => c.id === f.chain.value)?.tokens; };
+  api('/api/chains').then((list) => {
+    if (!list?.length) return;
+    chains = list;
+    $('#wForm').chain.innerHTML = list.map((c) => `<option value="${esc(c.id)}">${esc(c.label)} (${esc(c.symbol)})</option>`).join('');
+    syncToken();
+  }).catch(() => {}); // keep the BTC/ETH fallback
+  $('#wForm').chain.addEventListener('change', syncToken);
+  syncToken();
   const renderWallets = (ws) => {
-    $('#wList').innerHTML = ws.length ? `<table>${ws.map((w) => `<tr><td><b>${esc(w.label || w.chain.toUpperCase())}</b><br><span class="mono muted">${esc(w.address.slice(0, 10))}…${esc(w.address.slice(-6))}</span></td>
-      <td class="num">${w.balance == null ? `<span class="err">${esc(w.error ?? '—')}</span>` : `${fmt(w.balance, 8)} ${w.chain.toUpperCase()}`}</td><td><button class="btn ghost" data-del="${esc(w.address)}" type="button" aria-label="Remove">✕</button></td></tr>`).join('')}</table>` : '<p class="muted">No addresses watched yet.</p>';
-    $$('[data-del]', $('#wList')).forEach((b) => b.addEventListener('click', async () => renderWallets(await api(`/api/wallets?address=${encodeURIComponent(b.dataset.del)}`, { method: 'DELETE' }).then(() => api('/api/wallets')))));
+    const total = ws.reduce((t, w) => t + (Number.isFinite(w.usd) ? w.usd : 0), 0);
+    $('#wList').innerHTML = ws.length ? `<table>${ws.map((w) => `<tr><td><b>${esc(w.label || w.chain.toUpperCase())}</b> <span class="pill">${esc(w.chain.toUpperCase())}</span><br><span class="mono muted">${esc(w.address.slice(0, 10))}…${esc(w.address.slice(-6))}</span>${w.token ? `<br><span class="muted tiny">token ${esc(w.token.symbol ?? '')} <span class="mono">${esc(String(w.token.contract).slice(0, 10))}…</span></span>` : ''}</td>
+      <td class="num">${w.balance == null ? `<span class="err">${esc(w.error ?? '—')}</span>` : `${fmt(w.balance, 8)} ${esc(w.symbol || w.chain.toUpperCase())}${w.usd != null ? `<br><span class="muted tiny">${usd(w.usd)}</span>` : ''}`}</td><td><button class="btn ghost" data-del="${esc(w.address)}" data-chain="${esc(w.chain)}" data-token="${esc(w.token?.contract ?? '')}" type="button" aria-label="Remove">✕</button></td></tr>`).join('')}</table>
+      <p class="muted">Total: <b class="mono">${usd(total)}</b>${ws.some((w) => w.balance != null && w.usd == null) ? ' <span class="tiny">(some balances have no USD price)</span>' : ''}</p>` : '<p class="muted">No addresses watched yet.</p>';
+    $$('[data-del]', $('#wList')).forEach((b) => b.addEventListener('click', async () => renderWallets(await api(`/api/wallets?${new URLSearchParams({ address: b.dataset.del, chain: b.dataset.chain, token: b.dataset.token })}`, { method: 'DELETE' }) /* this row only */.then(() => api('/api/wallets')))));
   };
   refreshWallets = () => api('/api/wallets').then(renderWallets).catch(fail($('#wList')));
   refreshWallets();
@@ -463,7 +491,10 @@ async function loadCrypto() {
   renderWalletCreator();
   $('#wForm').addEventListener('submit', async (e) => {
     e.preventDefault();
-    try { await api('/api/wallets', { method: 'POST', body: { chain: e.target.chain.value, address: e.target.address.value.trim(), label: e.target.label.value } }); e.target.reset(); renderWallets(await api('/api/wallets')); } catch (err) { toast(err.message, true); }
+    const body = { chain: e.target.chain.value, address: e.target.address.value.trim(), label: e.target.label.value };
+    const token = e.target.token.value.trim();
+    if (token && !e.target.querySelector('[data-token]').hidden) body.token = token;
+    try { await api('/api/wallets', { method: 'POST', body }); e.target.reset(); syncToken(); renderWallets(await api('/api/wallets')); } catch (err) { toast(err.message, true); }
   });
   $('#connectBtn').addEventListener('click', connectWallet);
 }
@@ -512,7 +543,9 @@ async function loadMining() {
       <div id="mOut"></div></form>
       <div class="card"><h3>Live network</h3><div class="stats">${stat('BTC price', usd(n.btcUsd, 0))}${stat('Network hashrate', `${fmt(n.networkHashrateEHs, 0)} EH/s`)}${stat('Block subsidy', `${n.blockSubsidyBtc} BTC`)}${stat('Avg fees / block', `${fmt(n.feesPerBlockBtc, 4)} BTC`)}</div>
       <div class="lesson">Difficulty retargets every ~2 weeks and tends to rise, so treat these numbers as today's best case. Electricity price decides most outcomes: compare it with the break-even rate on the left.</div>
-      <h3>Running your own rigs</h3><ul><li>Point miners at a pool with the Stratum URL and your payout address; never at an address you don't control.</li><li>Isolate miners on their own VLAN and change default firmware passwords.</li><li>Browser and CPU mining of Bitcoin is not viable; StocksWorks deliberately ships no in-browser miner.</li></ul></div></div>`;
+      <h3>Running your own rigs</h3><ul><li>Point miners at a pool with the Stratum URL and your payout address; never at an address you don't control.</li><li>Isolate miners on their own VLAN and change default firmware passwords.</li><li>Browser and CPU mining of Bitcoin is not viable; StocksWorks deliberately ships no in-browser miner.</li></ul></div></div>
+      <div id="coins" class="card"><h2>Mineable coins</h2><div class="empty">Loading…</div></div>`;
+    loadCoins();
     const f = $('#mForm');
     const setPreset = () => { const p = n.presets[f.preset.value]; if (p) { f.th.value = p.hashrateTHs; f.w.value = p.watts; } };
     const calc = () => {
@@ -542,7 +575,26 @@ async function loadMining() {
   }
   loadFleet();
   clearInterval(loadFleet.timer);
-  loadFleet.timer = setInterval(() => { if (!$('#tab-mining').hidden && !$('#fleet')?.contains(document.activeElement)) loadFleet(); }, 15_000);
+  loadFleet.timer = setInterval(() => { if (!document.hidden && !$('#tab-mining').hidden && !$('#fleet')?.contains(document.activeElement)) loadFleet(); }, 15_000);
+}
+
+async function loadCoins() {
+  const box = $('#coins');
+  const big = (n) => (n == null || !Number.isFinite(Number(n)) ? '—' : Intl.NumberFormat('en-US', { notation: 'compact', maximumFractionDigits: 2 }).format(n));
+  try {
+    const { coins = [], source, note } = await api('/api/mining/coins');
+    let dir = -1;
+    const paint = () => {
+      const rows = [...coins].sort((a, b) => ((a.profitability ?? -Infinity) - (b.profitability ?? -Infinity)) * dir);
+      box.innerHTML = `<h2>Mineable coins</h2><p class="muted">${esc(note)} <span class="tiny">Source: ${esc(source)}. Estimates are for WhatToMine's reference hardware, before your electricity.</span></p>
+        <div class="scroll"><table><tr><th>Coin</th><th>Algorithm</th><th class="num">Net hashrate</th><th class="num">Difficulty</th><th class="num">Block reward</th><th class="num">Price (BTC)</th><th class="num">BTC / 24h</th>
+          <th class="num sort" data-psort>Profitability ${dir < 0 ? '▼' : '▲'}</th></tr>
+        ${rows.map((c) => `<tr><td><b>${esc(c.tag)}</b> <span class="muted">${esc(c.name)}</span></td><td>${esc(c.algorithm)}</td><td class="num">${big(c.nethash)}</td><td class="num">${big(c.difficulty)}</td>
+          <td class="num">${fmt(c.blockReward, 4)}</td><td class="num">${fmt(c.exchangeRate, 8)}</td><td class="num">${fmt(c.btcRevenue24h, 8)}</td><td class="num">${fmt(c.profitability, 0)}%</td></tr>`).join('')}</table></div>`;
+      box.querySelector('[data-psort]').addEventListener('click', () => { dir = -dir; paint(); });
+    };
+    paint();
+  } catch (e) { box.innerHTML = `<h2>Mineable coins</h2><p class="err">${esc(e.message)}</p>`; }
 }
 
 // ---------------- Mining fleet (remote rigs) ----------------
@@ -676,6 +728,7 @@ x-signature: sha256=HMAC_SHA256(WEBHOOK_SECRET, timestamp + "." + rawBody)</pre>
       const b = e.target.closest('[data-ph]');
       if (!b) return;
       try {
+        if (b.dataset.ph === 'emu') { await window.desktop.openPhone($('#phDev').value); return loadIntegrations(); }
         if (b.dataset.ph === 'toggle') { await api('/api/phone/enable', { method: 'POST', body: { on: b.dataset.on === '1' } }); return loadIntegrations(); }
         if (b.dataset.ph === 'remove' && armed(b, 'Remove?')) { await api(`/api/phone/devices?id=${encodeURIComponent(b.dataset.id)}`, { method: 'DELETE' }); toast('Phone removed'); return loadIntegrations(); }
         if (b.dataset.ph === 'pair') {
@@ -1003,6 +1056,7 @@ const WALLET_APPS = [
   ['Phantom', 'https://phantom.com/', 'Solana, ETH, BTC. Import the same phrase there.'],
 ];
 let refreshWallets = () => {};
+const GEN_CHAINS = [['eth', 'Ethereum (ETH + EVM tokens)'], ['btc', 'Bitcoin (native SegWit)'], ['ltc', 'Litecoin'], ['doge', 'Dogecoin'], ['sol', 'Solana']];
 
 function renderWalletCreator() {
   const box = $('#walletCreate');
@@ -1056,13 +1110,19 @@ async function generateWallet() {
       words.fill(''); words = null; pass = null; // drop the phrase and passphrase from this page
       $('#wcPass').value = ''; $('#wcPass').disabled = false; $('#wcSafe').checked = false;
       stage.innerHTML = `<p class="up">Wallet created. The recovery phrase has been cleared from this page.</p>
-        <table><tr><td>Ethereum (ETH + EVM tokens)</td><td class="mono">${esc(addrs.eth)}</td><td class="muted tiny">${esc(addrs.paths.eth)}</td></tr>
-        <tr><td>Bitcoin (native SegWit)</td><td class="mono">${esc(addrs.btc)}</td><td class="muted tiny">${esc(addrs.paths.btc)}</td></tr></table>
-        <p class="muted">These are receive addresses, now added to Watch-only. To spend, import your phrase into a wallet app (MetaMask: "Import using Secret Recovery Phrase"; Sparrow/Electrum: BIP39, Native SegWit). Send a small test amount first.</p>`;
-      for (const [chain, address] of [['eth', addrs.eth], ['btc', addrs.btc]]) {
-        await api('/api/wallets', { method: 'POST', body: { chain, address, label: 'Created in StocksWorks' } }).catch((err) => toast(err.message, true));
-      }
-      refreshWallets();
+        <table>${GEN_CHAINS.map(([k, label]) => `<tr><td>${esc(label)}</td><td class="mono">${esc(addrs[k])}</td><td class="muted tiny">${esc(addrs.paths?.[k] ?? '')}</td></tr>`).join('')}</table>
+        <p class="muted tiny">This ETH address also works on Polygon, BNB Chain, Arbitrum, Optimism, Base and Avalanche C-Chain.</p>
+        <button class="btn primary" id="wcWatch" type="button">Watch all</button>
+        <p class="muted">These are receive addresses. To spend, import your phrase into a wallet app (MetaMask: "Import using Secret Recovery Phrase"; Sparrow/Electrum: BIP39, Native SegWit; Phantom for Solana). Send a small test amount first.</p>`;
+      $('#wcWatch').addEventListener('click', async (ev) => {
+        ev.target.disabled = true;
+        let ok = 0;
+        for (const [chain] of GEN_CHAINS) {
+          if (addrs[chain]) await api('/api/wallets', { method: 'POST', body: { chain, address: addrs[chain], label: 'Created in StocksWorks' } }).then(() => ok++).catch((err) => toast(err.message, true));
+        }
+        if (ok) toast(`Watching ${ok} address${ok === 1 ? '' : 'es'}`);
+        refreshWallets();
+      });
     });
   });
 }

@@ -9,6 +9,8 @@ Bundled license information:
 @noble/curves/abstract/der.js:
 @noble/curves/abstract/weierstrass.js:
 @noble/curves/secp256k1.js:
+@noble/curves/abstract/edwards.js:
+@noble/curves/ed25519.js:
   /*! noble-curves - MIT License (c) 2022 Paul Miller (paulmillr.com) */
 
 @scure/base/index.js:

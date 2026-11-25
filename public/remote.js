@@ -29,7 +29,7 @@ function armed(btn, label = 'Tap again to confirm') {
   setTimeout(() => { btn.dataset.armed = ''; btn.textContent = old; btn.classList.remove('warn'); }, 4000);
   return false;
 }
-const deviceName = () => { const u = navigator.userAgent; return /iPhone/.test(u) ? 'iPhone' : /iPad/.test(u) ? 'iPad' : /Android/.test(u) ? 'Android phone' : 'Phone'; };
+const deviceName = () => { const u = navigator.userAgent; return /StocksWorksEmulator/.test(u) ? 'Phone emulator (this PC)' : /iPhone/.test(u) ? 'iPhone' : /iPad/.test(u) ? 'iPad' : /Android/.test(u) ? 'Android phone' : 'Phone'; };
 const live = () => status?.mode === 'live';
 const totpField = (label = 'Authenticator code') => `<label>${esc(label)}<input name="totp" inputmode="numeric" maxlength="6" autocomplete="one-time-code"></label>`;
 
@@ -72,7 +72,7 @@ async function startApp() {
   $('#rNav').hidden = false; $('#rLock').hidden = false;
   open(tab);
   clearInterval(timer);
-  timer = setInterval(() => { if (!document.hidden && !view.contains(document.activeElement)) open(tab, true); }, 15_000);
+  timer = setInterval(() => { if (!document.hidden && !view.contains(document.activeElement)) open(tab, true); }, 30_000); // phone battery + data
 }
 function paintMode() {
   $('#rMode').innerHTML = `<span class="badge ${status.killSwitch ? 'halt' : esc(status.mode)}">${status.killSwitch ? 'HALTED' : esc(status.mode.toUpperCase())}</span>`;
@@ -100,7 +100,8 @@ async function home() {
   const halt = `<div class="card"><h3>Kill switch</h3>
     ${status.killSwitch ? `<p class="err">All trading is halted.</p><button class="btn big" type="button" data-kill="off">Resume trading</button>`
       : `<p class="muted">Stops all new orders and cancels open ones.</p><label class="check-row"><input type="checkbox" id="flatten"> Also close all positions</label>
-        <button class="btn danger big" type="button" data-kill="on">Halt all trading</button>`}</div>`;
+        <button class="btn danger big" type="button" data-kill="on">Halt all trading</button>`}
+    ${live() ? totpField('Authenticator code (live: needed to resume or to close all positions)') : ''}</div>`;
   if (!status.alpaca) { view.innerHTML = `${halt}<div class="card"><p class="muted">No broker connected on your PC yet.</p></div>`; return wireHome(); }
   const { account: a, positions, orders } = await api('/api/account');
   const dayPl = Number(a.equity) - Number(a.last_equity);
@@ -123,7 +124,8 @@ function wireHome() {
     if (!b) return;
     try {
       if (b.dataset.kill && armed(b)) {
-        await api('/api/kill', { method: 'POST', body: { on: b.dataset.kill === 'on', flatten: $('#flatten')?.checked === true } });
+        const totp = $$('[name=totp]', view).map((i) => i.value.trim()).find(Boolean) ?? ''; // live: resume / close-all need a code
+        await api('/api/kill', { method: 'POST', body: { on: b.dataset.kill === 'on', flatten: $('#flatten')?.checked === true, totp } });
         toast(b.dataset.kill === 'on' ? 'Trading halted' : 'Trading resumed'); open('home');
       }
       if (b.dataset.close && armed(b, 'Close all?')) {
@@ -225,7 +227,160 @@ async function alerts() {
   view.innerHTML = `<div class="card"><h3>Recent alerts</h3>${a.events.length ? a.events.slice(0, 40).map((x) => `<div class="r-row"><div>${esc(x.text)}<div class="muted tiny">${esc(new Date(x.at).toLocaleString())}</div></div></div>`).join('') : '<p class="muted">No alerts have fired yet.</p>'}
     <p class="muted tiny">${a.alerts.filter((x) => x.armed).length} armed. Create alerts on your PC (Alerts tab).</p></div>`;
 }
-const TABS = { home, trade, mining, alerts };
+// ---------------- Auto: what runs when (Focus) + scheduled tasks ----------------
+const ago = (t) => (t ? new Date(t).toLocaleString([], { month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' }) : 'never');
+async function auto() {
+  const a = await api('/api/autopilot');
+  const acts = Object.entries(a.activities);
+  const tradeWord = a.trading.mode === 'live' ? 'REAL MONEY' : 'paper';
+  const needsCode = (id) => a.trading.mode === 'live' && a.tasks.find((t) => t.id === id)?.action === 'trade';
+  const code = () => $('[name=totp]', view)?.value ?? '';
+  view.innerHTML = `<div class="card"><h3>What runs now</h3>
+      <p class="muted tiny">${a.focus.mode === 'schedule' ? 'Following your time slots (set on the PC). Outside a slot, the ticks below apply.' : 'Manual: tick what may run.'}</p>
+      ${acts.map(([id, label]) => `<label class="r-row r-check"><span>${esc(label)}${a.allowedNow.includes(id) ? ' <span class="up tiny">● now</span>' : ''}</span>
+        <span class="r-switch"><input type="checkbox" data-act="${esc(id)}" ${a.focus.manual.includes(id) ? 'checked' : ''}><span></span></span></label>`).join('')}
+      ${a.focus.mode === 'schedule' ? '<button class="btn ghost" type="button" data-manual>Use the manual list now</button>' : a.focus.slots.length ? '<button class="btn ghost" type="button" data-sched>Back to my time slots</button>' : ''}</div>
+    <div class="card"><h3>Tasks</h3><p class="muted tiny">Orders go to your ${esc(tradeWord)} account through every risk limit and the kill switch${a.trading.mode === 'live' && !a.trading.liveAllowed ? ' (live auto-trading is off on the PC)' : ''}. Create and edit tasks on the PC.</p>
+      ${a.tasks.length ? a.tasks.map((t) => `<div class="r-row"><div><b>${esc(t.name)}</b><div class="muted tiny">${esc(a.kinds[t.kind]?.label.split(':')[0] ?? t.kind)}${t.action ? ` · ${t.action === 'trade' ? `places ${esc(tradeWord)} orders` : 'alerts only'}` : ''} · last ${esc(ago(t.lastRunAt))}</div>
+          ${t.lastResult ? `<div class="tiny">${esc(t.lastResult)}</div>` : ''}</div>
+          <div class="r-col"><label class="r-switch"><input type="checkbox" data-task="${esc(t.id)}" ${t.enabled ? 'checked' : ''}><span></span></label>
+          <button class="btn ghost" type="button" data-run="${esc(t.id)}">Run</button></div></div>`).join('') : '<p class="muted">No tasks yet. Add them on your PC (Autopilot tab).</p>'}
+      ${a.tasks.some((t) => needsCode(t.id)) ? totpField('Authenticator code (to switch on or run a real-money task)') : ''}</div>
+    <div class="card"><h3>Recent activity</h3>${a.events.length ? a.events.slice(0, 15).map((e) => `<div class="r-row"><div class="tiny">${esc(e.text)}<div class="muted">${esc(ago(e.at))}</div></div></div>`).join('') : '<p class="muted">Nothing has run yet.</p>'}</div>`;
+  const setFocus = async (focus) => { await api('/api/autopilot/focus', { method: 'POST', body: focus }); toast('Updated'); open('auto', true); };
+  view.onchange = async (e) => {
+    const i = e.target;
+    try {
+      if (i.dataset.act) await setFocus({ ...a.focus, manual: $$('[data-act]', view).filter((x) => x.checked).map((x) => x.dataset.act) });
+      if (i.dataset.task) { await api('/api/autopilot/tasks/toggle', { method: 'POST', body: { id: i.dataset.task, on: i.checked, ...(needsCode(i.dataset.task) ? { totp: code() } : {}) } }); toast(i.checked ? 'Task on' : 'Task off'); }
+    } catch (err) { i.checked = !i.checked; toast(err.message, true); }
+  };
+  view.onclick = async (e) => {
+    const b = e.target.closest('button'); if (!b) return;
+    try {
+      if (b.dataset.manual !== undefined) await setFocus({ ...a.focus, mode: 'manual' });
+      if (b.dataset.sched !== undefined) await setFocus({ ...a.focus, mode: 'schedule' });
+      if (b.dataset.run && armed(b, 'Run now?')) { b.disabled = true; toast('Running…'); const r = await api('/api/autopilot/tasks/run', { method: 'POST', body: { id: b.dataset.run, ...(needsCode(b.dataset.run) ? { totp: code() } : {}) } }); toast(r.result.slice(0, 140)); open('auto', true); }
+    } catch (err) { toast(err.message, true); }
+  };
+}
+
+// ---------------- Markets: scanner, AI analysis, crypto, wallets ----------------
+async function markets() {
+  const [scan, cg, wallets] = await Promise.all([
+    status.alpaca ? api('/api/scan').catch((e) => ({ error: e.message })) : { error: 'No broker connected on your PC (market data comes from Alpaca).' },
+    api('/api/crypto/markets').catch(() => []), api('/api/wallets').catch(() => [])]);
+  const total = wallets.reduce((s, w) => s + (w.usd ?? 0), 0);
+  view.innerHTML = `<div class="card"><h3>AI scanner</h3>${scan.error ? `<p class="muted">${esc(scan.error)}</p>` : scan.slice(0, 15).map((r) => `<div class="r-row"><div><b>${esc(r.symbol)}</b><div class="muted tiny">${r.score == null ? esc(r.error ?? '') : `score ${esc(r.score)}${r.label ? ` · ${esc(r.label)}` : ''}`}</div></div>
+        ${r.score == null ? '' : `<button class="btn ghost" type="button" data-ai="${esc(r.symbol)}">AI</button>`}</div>`).join('')}<div id="rAi"></div></div>
+    <div class="card"><h3>Crypto</h3>${(Array.isArray(cg) ? cg : []).slice(0, 12).map((c) => `<div class="r-row"><div><b>${esc(String(c.symbol).toUpperCase())}</b> <span class="muted tiny">${esc(c.name)}</span></div>
+        <div class="num"><div>${usd(c.current_price)}</div><div class="tiny ${cls(c.price_change_percentage_24h)}">${Number(c.price_change_percentage_24h ?? 0).toFixed(2)}%</div></div></div>`).join('') || '<p class="muted">Unavailable.</p>'}</div>
+    <div class="card"><h3>Wallets${total ? ` · ${usd(total)}` : ''}</h3>${wallets.length ? wallets.map((w) => `<div class="r-row"><div><b>${esc(w.label || w.chain.toUpperCase())}</b><div class="muted tiny">${esc(w.chain)} · ${esc(w.address.slice(0, 8))}…${esc(w.address.slice(-6))}</div></div>
+        <div class="num"><div>${w.balance == null ? `<span class="err tiny">${esc(w.error ?? '—')}</span>` : `${esc(Number(w.balance).toLocaleString(undefined, { maximumFractionDigits: 6 }))} ${esc(w.symbol)}`}</div><div class="tiny muted">${w.usd == null ? '' : usd(w.usd)}</div></div></div>`).join('') : '<p class="muted">Watch wallets on your PC (Crypto &amp; Wallet tab).</p>'}</div>`;
+  view.onclick = async (e) => {
+    const b = e.target.closest('button[data-ai]'); if (!b) return;
+    b.disabled = true; $('#rAi').innerHTML = `<p class="muted">Analyzing ${esc(b.dataset.ai)}…</p>`;
+    try {
+      const r = await api('/api/ai/analyze', { method: 'POST', body: { symbol: b.dataset.ai } });
+      $('#rAi').innerHTML = `<div class="r-ai"><b>${esc(b.dataset.ai)}: ${esc(r.stance)} (${esc(r.confidence)}%)</b><p>${esc(r.thesis)}</p>
+        <p class="tiny muted">Entry ${esc(r.entry ?? '—')} · stop ${esc(r.stop ?? '—')} · target ${esc(r.target ?? '—')}</p><p class="tiny">${esc(r.lesson)}</p>
+        ${(r.checks ?? []).map((c) => `<div class="tiny ${c.status === 'contradicted' ? 'err' : 'muted'}">${c.status === 'verified' ? '✓' : c.status === 'contradicted' ? '✗' : '?'} ${esc(c.check)}: ${esc(c.evidence)}</div>`).join('')}</div>`;
+    } catch (err) { $('#rAi').innerHTML = `<p class="err">${esc(err.message)}</p>`; }
+    b.disabled = false;
+  };
+}
+
+// ---------------- More: research (Finviz, Messari, Invo traders), teach the AI, alerts ----------------
+async function more() {
+  const [src, tr] = await Promise.all([api('/api/research/sources'), api('/api/research/traders')]);
+  view.innerHTML = `<div class="card"><h3>Research</h3>
+      <div class="seg r-seg" id="rSrc"><button type="button" data-src="finviz" class="on">Finviz</button><button type="button" data-src="news">Messari news</button><button type="button" data-src="traders">Invo traders</button></div>
+      <div id="rRes"></div></div>
+    <div class="card"><h3>Dossier &amp; fact check</h3>
+      <form id="rDos" class="r-chips"><input name="s" placeholder="AAPL or BTC/USD" autocapitalize="characters" autocomplete="off"><button class="btn" type="submit">Dossier</button></form><div id="rDosOut"></div>
+      <textarea id="rClaim" rows="2" maxlength="1000" placeholder="A claim to fact-check, e.g. Bitcoin's supply is capped at 21 million"></textarea><button class="btn" type="button" data-fc>Fact-check</button><div id="rFcOut"></div></div>
+    <div class="card"><h3>Teach the AI</h3><p class="muted tiny">Goes into the AI Lab training corpus (${esc(Math.round(src.corpusChars / 1000))}k chars taught so far).</p>
+      <textarea id="rNote" rows="3" maxlength="20000" placeholder="A lesson, a trade idea, a rule you follow…"></textarea><button class="btn" type="button" data-note>Add note</button></div>
+    <div id="rAlerts"></div>`;
+  const res = $('#rRes');
+  const show = async (which) => {
+    $$('#rSrc button').forEach((x) => x.classList.toggle('on', x.dataset.src === which));
+    res.innerHTML = '<p class="muted">Loading…</p>';
+    try {
+      if (which === 'finviz') {
+        if (!src.finviz.configured) { res.innerHTML = '<p class="muted">Add your Finviz Elite token on the PC (FINVIZ_AUTH_TOKEN).</p>'; return; }
+        const presets = { 'Large-cap tech': 'cap_large,sec_technology', Oversold: 'ta_rsi_os30,sh_avgvol_o500', 'Unusual volume': 'sh_relvol_o2', 'New highs': 'ta_highlow52w_nh' };
+        res.innerHTML = `<div class="r-chips">${Object.entries(presets).map(([k, f]) => `<button class="btn ghost" type="button" data-fv="${esc(f)}">${esc(k)}</button>`).join('')}</div><div id="rFv"></div>`;
+      } else if (which === 'news') {
+        if (!src.messari.configured) { res.innerHTML = '<p class="muted">Add your Messari API key on the PC (MESSARI_API_KEY).</p>'; return; }
+        const { items } = await api('/api/research/messari/news');
+        res.innerHTML = `${items.slice(0, 20).map((n) => `<div class="r-row"><div><a href="${esc(n.url)}" target="_blank" rel="noopener noreferrer">${esc(n.title)}</a><div class="muted tiny">${esc(n.source)} · ${esc(n.assets.join(', '))}</div></div></div>`).join('') || '<p class="muted">No news.</p>'}
+          <button class="btn" type="button" data-learn="messari-news">Teach the AI this news</button>`;
+      } else {
+        res.innerHTML = tr.traders.length ? tr.traders.map((t) => `<div class="r-row"><div><b>${esc(t.label || t.address.slice(0, 10))}</b><div class="muted tiny">${esc(t.address.slice(0, 10))}…</div></div>
+            <button class="btn ghost" type="button" data-trader="${esc(t.address)}">View</button></div>`).join('') + '<div id="rTr"></div>'
+          : '<p class="muted">Follow Invo traders on your PC (Research tab): paste the 0x address from their Invo profile.</p>';
+      }
+    } catch (e) { res.innerHTML = `<p class="err">${esc(e.message)}</p>`; }
+  };
+  view.onclick = async (e) => {
+    const b = e.target.closest('button'); if (!b) return;
+    try {
+      if (b.dataset.src) show(b.dataset.src);
+      if (b.dataset.fv) {
+        const { rows } = await api(`/api/research/finviz?f=${encodeURIComponent(b.dataset.fv)}`);
+        $('#rFv').innerHTML = rows.slice(0, 25).map((r) => `<div class="r-row"><div><b>${esc(r.ticker)}</b><div class="muted tiny">${esc(r.company)} · ${esc(r.sector)}</div></div>
+          <div class="num"><div>${usd(r.price)}</div><div class="tiny ${cls(r.changePct)}">${esc(r.changePct ?? '—')}%</div></div></div>`).join('') + `<button class="btn" type="button" data-learn="finviz" data-f="${esc(b.dataset.fv)}">Teach the AI this screen</button>`;
+      }
+      if (b.dataset.trader) {
+        const t = await api(`/api/research/trader?address=${encodeURIComponent(b.dataset.trader)}`);
+        $('#rTr').innerHTML = `<div class="r-ai"><p><b>${esc(t.style)}</b></p><p class="tiny">Account ${usd(t.accountValue)} · realized ${usd(t.fills.realizedPnl)}</p>
+          ${t.positions.map((p) => `<div class="tiny">${esc(p.side)} ${esc(p.size)} ${esc(p.coin)} @ ${esc(p.entryPx)} · ${esc(p.leverage ?? '?')}x · <span class="${cls(p.unrealizedPnl)}">${usd(p.unrealizedPnl)}</span></div>`).join('')}
+          <button class="btn" type="button" data-learn="trader" data-addr="${esc(t.address)}">Teach the AI this trader's style</button></div>`;
+      }
+      if (b.dataset.learn) {
+        const body = { source: b.dataset.learn, ...(b.dataset.f ? { f: b.dataset.f } : {}), ...(b.dataset.addr ? { address: b.dataset.addr } : {}), ...(b.dataset.sym ? { symbol: b.dataset.sym } : {}) };
+        const r = await api('/api/research/learn', { method: 'POST', body }); toast(`Taught the AI ${r.added} chars`);
+      }
+      if (b.dataset.fc !== undefined) {
+        const claim = $('#rClaim').value.trim(); if (!claim) return;
+        b.disabled = true; $('#rFcOut').innerHTML = '<p class="muted">Checking sources…</p>';
+        try {
+          const r = await api('/api/factcheck', { method: 'POST', body: { claim } });
+          $('#rFcOut').innerHTML = `<div class="r-ai"><b class="${r.verdict === 'refuted' ? 'err' : r.verdict === 'supported' ? 'up' : ''}">${esc(r.verdict.toUpperCase())}</b> <span class="tiny muted">${esc(r.confidence)}%</span><p class="tiny">${esc(r.explanation)}</p>
+            ${r.note ? `<p class="tiny muted">${esc(r.note)}</p>` : ''}${r.sources.map((x) => /^https?:\/\//.test(x.url) ? `<div class="tiny"><a href="${esc(x.url)}" target="_blank" rel="noopener noreferrer">${esc(x.title || x.url)}</a></div>` : '').join('')}</div>`;
+        } finally { b.disabled = false; }
+      }
+      if (b.dataset.note !== undefined) {
+        const text = $('#rNote').value.trim(); if (!text) return;
+        const r = await api('/api/research/learn', { method: 'POST', body: { source: 'note', text } }); $('#rNote').value = ''; toast(`Taught the AI ${r.added} chars`);
+      }
+    } catch (err) { toast(err.message, true); }
+  };
+  $('#rDos').addEventListener('submit', async (e) => {
+    e.preventDefault();
+    const s = e.target.s.value.trim().toUpperCase(); if (!s) return;
+    const out = $('#rDosOut'); out.innerHTML = '<p class="muted">Gathering…</p>';
+    try {
+      const d = await api(`/api/intel?s=${encodeURIComponent(s)}`);
+      const f = d.edgar?.facts, ag = d.agreement;
+      out.innerHTML = `<div class="r-ai"><b>${esc(d.symbol)} ${d.price != null ? usd(d.price) : ''}</b>
+        <div class="tiny ${ag.status === 'disagree' ? 'err' : 'muted'}">${ag.status === 'agree' ? `prices agree (${esc(ag.sources.join(', '))})` : ag.status === 'disagree' ? `prices DISAGREE: ${esc(ag.outliers.join(', '))}` : esc(ag.status)}</div>
+        ${d.signal ? `<div class="tiny">Score ${esc(d.signal.score)}/100</div>` : ''}
+        ${f?.revenue?.annual ? `<div class="tiny">${esc(d.edgar.name)}: revenue ${usd(f.revenue.annual.val)}${f.revenueGrowthPct != null ? ` (${esc(f.revenueGrowthPct)}% y/y)` : ''}</div>` : ''}
+        ${d.coin ? `<div class="tiny">${esc(d.coin.name)} #${esc(d.coin.rank)} · 24h ${esc(Number(d.coin.change24hPct ?? 0).toFixed(2))}%</div>` : ''}
+        ${d.defi ? `<div class="tiny">DeFi TVL ${usd(d.defi.tvlUsd)}</div>` : ''}
+        ${d.sentiment ? `<div class="tiny">Fear &amp; Greed ${esc(d.sentiment.value)} (${esc(d.sentiment.label)})</div>` : ''}
+        ${d.news.slice(0, 5).map((n) => `<div class="tiny">• ${esc(n.title)}</div>`).join('')}
+        <button class="btn" type="button" data-learn="dossier" data-sym="${esc(d.symbol)}">Teach the AI this dossier</button></div>`;
+    } catch (err) { out.innerHTML = `<p class="err">${esc(err.message)}</p>`; }
+  });
+  show('finviz');
+  const a = await api('/api/alerts').catch(() => null);
+  if (a && tab === 'more') $('#rAlerts').innerHTML = `<div class="card"><h3>Recent alerts</h3>${a.events.length ? a.events.slice(0, 20).map((x) => `<div class="r-row"><div>${esc(x.text)}<div class="muted tiny">${esc(new Date(x.at).toLocaleString())}</div></div></div>`).join('') : '<p class="muted">No alerts have fired yet.</p>'}</div>`;
+}
+
+const TABS = { home, trade, auto, markets, mining, more, alerts };
 
 // ---------------- boot ----------------
 async function boot() {

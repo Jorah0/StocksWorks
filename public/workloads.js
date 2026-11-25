@@ -23,14 +23,17 @@ export function mountWorkloads(box, category) {
     <div class="bar"><button class="btn primary" type="button" data-add>+ Add ${category === 'mine' ? 'a miner' : 'a compute-sharing program'}</button></div>
     <form class="wl-form card" hidden novalidate></form>`;
   const list = box.querySelector('.wl-list'), form = box.querySelector('.wl-form');
-  let kinds = {}, rows = [], pickedNew = false;
+  let kinds = {}, remoteKinds = null, rows = [], pickedNew = false;
+  // Miner catalog from the server (algorithms, devices); falls back to the kinds the desktop app reports.
+  const miners = fetch('/api/miners', { credentials: 'same-origin' }).then((r) => (r.ok ? r.json() : null)).then((j) => { remoteKinds = j?.kinds ?? null; }).catch(() => {});
   const fail = (r) => { if (r?.error) throw new Error(r.error); return r; };
   const say = (msg, bad) => { const p = form.querySelector('.wl-msg') ?? list; p.insertAdjacentHTML('afterbegin', `<p class="${bad ? 'err' : 'up'} wl-flash">${esc(msg)}</p>`); setTimeout(() => box.querySelector('.wl-flash')?.remove(), 6000); };
 
   async function refresh() {
     let r;
     try { r = fail(await api.list()); } catch (e) { list.innerHTML = `<p class="err">${esc(e.message)}</p>`; return; }
-    kinds = r.kinds;
+    await miners;
+    kinds = { ...r.kinds, ...remoteKinds };
     rows = r.workloads.filter((w) => w.category === category);
     if (list.contains(document.activeElement)) return; // don't redraw under the user's focus
     list.innerHTML = rows.length ? rows.map((w) => {
@@ -60,6 +63,8 @@ export function mountWorkloads(box, category) {
           <label>Your payout address<input name="payout" value="${esc(w?.payout ?? '')}" spellcheck="false"></label></div>
         <div class="row"><label>Worker name<input name="worker" maxlength="32" value="${esc(w?.worker ?? 'desktop')}"></label><label>Pool password<input name="pass" maxlength="32" value="${esc(w?.pass ?? 'x')}"></label></div>
         <label data-cpu>CPU cap: use at most <output name="cpuOut">${esc(w?.cpuPct ?? 50)}</output>% of CPU threads<input name="cpuPct" type="range" min="10" max="100" step="5" value="${esc(w?.cpuPct ?? 50)}"></label>
+        <div class="row"><label data-algo>Algorithm / coin<select name="algo"></select></label>
+          <label data-device>Use<select name="device">${['cpu', 'gpu', 'both'].map((d) => `<option value="${d}" ${(w?.device ?? 'both') === d ? 'selected' : ''}>${d === 'both' ? 'CPU and GPU' : d.toUpperCase()}</option>`).join('')}</select></label></div>
         <label data-gpu>Graphics card<select name="gpu"><option value="opencl" ${w?.gpu === 'cuda' ? '' : 'selected'}>AMD (OpenCL)</option><option value="cuda" ${w?.gpu === 'cuda' ? 'selected' : ''}>NVIDIA (CUDA plugin required)</option></select></label></div>
       <label data-args>Program arguments, one per line (optional)<textarea name="args" rows="3" spellcheck="false" placeholder="${category === 'share' ? '--dir\nC:\\ProgramData\\BOINC' : ''}">${esc((w?.args ?? []).join('\n'))}</textarea></label>
       <fieldset><legend>When it may run</legend>
@@ -74,8 +79,17 @@ export function mountWorkloads(box, category) {
       <label>Your StocksWorks passphrase (required to approve a program or change its settings)<input name="passphrase" type="password" autocomplete="current-password"></label>
       <div class="row"><button class="btn primary" type="submit">Save</button><button class="btn ghost" type="button" data-cancel>Cancel</button></div>`;
     form.dataset.id = w?.id ?? '';
+    let algoKind = null;
     const sync = () => {
-      const kk = form.kind.value, pool = Boolean(kinds[kk]?.pool);
+      const kk = form.kind.value, pool = Boolean(kinds[kk]?.pool), K = kinds[kk] ?? {};
+      if (algoKind !== kk) { // refill the algorithm list only when the type changes, so a pick survives other edits
+        const cur = kk === w?.kind ? w?.algo : null;
+        form.algo.innerHTML = (K.algos ?? []).map((a) => `<option value="${esc(a)}" ${a === (cur ?? K.defaultAlgo) ? 'selected' : ''}>${esc(a)}</option>`).join('');
+        form.device.querySelectorAll('option').forEach((o) => { o.hidden = Boolean(K.devices) && !K.devices.includes(o.value); });
+        algoKind = kk;
+      }
+      form.querySelector('[data-algo]').hidden = !K.algos?.length;
+      form.querySelector('[data-device]').hidden = !K.devices?.length;
       form.querySelector('[data-pool]').hidden = !pool;
       form.querySelector('[data-cpu]').hidden = kk !== 'xmrig-cpu';
       form.querySelector('[data-gpu]').hidden = kk !== 'xmrig-gpu';
@@ -106,6 +120,7 @@ export function mountWorkloads(box, category) {
     const workload = {
       id: f.dataset.id || undefined, kind: f.kind.value, name: f.wname.value, enabled: f.enabled.checked,
       pool: f.pool.value, payout: f.payout.value, worker: f.worker.value, pass: f.pass.value, cpuPct: Number(f.cpuPct.value), gpu: f.gpu.value, args: f.args.value,
+      ...(kinds[f.kind.value]?.algos?.length ? { algo: f.algo.value } : {}), ...(kinds[f.kind.value]?.devices?.length ? { device: f.device.value } : {}),
       schedule: {
         hours, windows: hours ? [{ days: [...f.querySelectorAll('[name=day]:checked')].map((x) => Number(x.value)), start: f.start.value, end: f.end.value }] : [],
         idleOnly: f.idleOnly.checked, idleMinutes: Number(f.idleMinutes.value), pauseOnBattery: f.pauseOnBattery.checked, maxHoursPerDay: Number(f.maxHoursPerDay.value),
@@ -137,5 +152,6 @@ export function mountWorkloads(box, category) {
 
   refresh();
   clearInterval(box._wlTimer);
-  box._wlTimer = setInterval(() => (document.body.contains(box) ? refresh() : clearInterval(box._wlTimer)), 5000);
+  // No polling while the window is minimized/hidden (saves wakeups while mining); catches up when shown.
+  box._wlTimer = setInterval(() => (!document.body.contains(box) ? clearInterval(box._wlTimer) : document.hidden ? null : refresh()), 5000);
 }

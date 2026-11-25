@@ -199,6 +199,7 @@ function registerWorkloadIpc() {
     return { closeToTaskbar: prefs.closeToTaskbar, startAtLogin: startsAtLogin() };
   });
   handle('openShare', () => { openShareWindow(); });
+  handle('openPhone', async (_e, device) => { await openPhoneEmulator(Object.hasOwn(PHONES, device) ? device : 'iphone'); });
 }
 
 // ---------------- server ----------------
@@ -269,12 +270,109 @@ function createMainWindow() {
   mainWin.loadURL(appUrl);
 }
 
+// ---------------- phone emulator ----------------
+// The real phone app, served by the real phone listener (TLS + pairing + phone route allowlist), in a window that
+// emulates a phone: screen size, pixel density, touch input and a mobile user agent. What works here works on a phone.
+const PHONES = {
+  iphone: { name: 'iPhone 15', w: 393, h: 852, dpr: 3, ua: 'Mozilla/5.0 (iPhone; CPU iPhone OS 17_5 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/17.5 Mobile/15E148 Safari/604.1' },
+  pixel: { name: 'Pixel 8', w: 412, h: 915, dpr: 2.625, ua: 'Mozilla/5.0 (Linux; Android 14; Pixel 8) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/125.0.0.0 Mobile Safari/537.36' },
+  galaxy: { name: 'Galaxy S23', w: 360, h: 780, dpr: 3, ua: 'Mozilla/5.0 (Linux; Android 14; SM-S911B) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/125.0.0.0 Mobile Safari/537.36' },
+  ipad: { name: 'iPad mini', w: 744, h: 1133, dpr: 2, ua: 'Mozilla/5.0 (iPad; CPU OS 17_5 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/17.5 Mobile/15E148 Safari/604.1' },
+};
+const PHONE_PARTITION = 'persist:phone-emulator'; // its own cookie jar: paired once, like a real phone
+let phoneWin = null;
+async function openPhoneEmulator(deviceId = 'iphone') {
+  if (!serverHooks?.phoneEmulator) return null;
+  const d = PHONES[deviceId] ?? PHONES.iphone;
+  if (phoneWin && phoneWin.__device === deviceId) { phoneWin.show(); phoneWin.focus(); return phoneWin; }
+  phoneWin?.destroy();
+  const ses = session.fromPartition(PHONE_PARTITION);
+  const paired = (await ses.cookies.get({ name: 'swdev' })).length > 0;
+  const { url, origin, fingerprint } = await serverHooks.phoneEmulator({ paired });
+  // Pinned: this session trusts exactly the StocksWorks phone certificate on loopback, nothing else.
+  ses.setCertificateVerifyProc((req, cb) => {
+    try { cb(req.hostname === '127.0.0.1' && new crypto.X509Certificate(req.certificate.data).fingerprint256 === fingerprint ? 0 : -2); } catch { cb(-2); }
+  });
+  ses.setPermissionRequestHandler((_wc, _p, cb) => cb(false));
+  ses.setPermissionCheckHandler(() => false);
+  const ua = `${d.ua} StocksWorksEmulator`;
+  const win = new BrowserWindow({
+    useContentSize: true, width: d.w, height: d.h, resizable: false, maximizable: false, backgroundColor: BG, icon: ICON, autoHideMenuBar: true,
+    title: `StocksWorks phone emulator · ${d.name}`,
+    webPreferences: { partition: PHONE_PARTITION, contextIsolation: true, sandbox: true, nodeIntegration: false, webviewTag: false, spellcheck: false },
+  });
+  win.__device = deviceId;
+  phoneWin = win;
+  harden(win, `${origin}/`);
+  win.on('page-title-updated', (e) => e.preventDefault());
+  win.on('closed', () => { if (phoneWin === win) { phoneWin = null; serverHooks.phoneEmulatorClosed?.(); } });
+  const wc = win.webContents;
+  wc.setUserAgent(ua);
+  await win.loadURL(url);
+  // Phone viewport (device-width layout, pixel density) + touch via the DevTools protocol, the engine behind
+  // Chrome's device mode. Sent once a page exists: before the first load the target can close under us.
+  try {
+    if (!wc.debugger.isAttached()) wc.debugger.attach('1.3');
+    await wc.debugger.sendCommand('Emulation.setDeviceMetricsOverride', { width: d.w, height: d.h, deviceScaleFactor: d.dpr, mobile: true, screenWidth: d.w, screenHeight: d.h });
+    await wc.debugger.sendCommand('Emulation.setTouchEmulationEnabled', { enabled: true, maxTouchPoints: 5 });
+    await wc.debugger.sendCommand('Emulation.setEmitTouchEventsForMouse', { enabled: true, configuration: 'mobile' });
+    await wc.debugger.sendCommand('Page.reload', {}); // re-lay out from scratch at the phone's width
+    await new Promise((r) => wc.once('did-finish-load', r));
+  } catch (e) { console.warn('phone emulation:', e.message); }
+  return win;
+}
+
+/**
+ * Automated phone test (source runs only): STOCKSWORKS_PHONE_TEST=<dir> plus STOCKSWORKS_TEST_PASSPHRASE.
+ * Opens the emulator, unlocks, visits every tab, screenshots each, and writes report.json (console errors,
+ * failed requests, horizontal overflow, tab errors) before quitting. scripts/emulate-phone.mjs drives it.
+ */
+async function runPhoneTest(dir) {
+  const report = { device: null, step: 'start', tabs: [], consoleErrors: [], failedRequests: [] };
+  const wait = (ms) => new Promise((r) => setTimeout(r, ms));
+  fs.mkdirSync(dir, { recursive: true });
+  const finish = () => { fs.writeFileSync(path.join(dir, 'report.json'), JSON.stringify(report, null, 2)); app.exit(0); };
+  setTimeout(() => { report.fatal = `timed out at step: ${report.step}`; finish(); }, 120_000).unref(); // a hang still reports where
+  try {
+    const deviceId = process.env.STOCKSWORKS_PHONE_DEVICE || 'iphone';
+    report.device = PHONES[deviceId]?.name ?? deviceId;
+    report.screenWidth = PHONES[deviceId]?.w ?? null;
+    const ses = session.fromPartition(PHONE_PARTITION);
+    ses.webRequest.onCompleted((det) => { if (det.statusCode >= 500) report.failedRequests.push(`${det.statusCode} ${det.method} ${new URL(det.url).pathname}`); });
+    report.step = 'open emulator';
+    const win = await openPhoneEmulator(deviceId);
+    const wc = win.webContents;
+    wc.on('console-message', (e) => { if (e.level === 'error' || e.level === 'warning') report.consoleErrors.push(String(e.message).slice(0, 300)); });
+    const js = (code) => wc.executeJavaScript(code);
+    report.step = 'unlock';
+    await wait(2500);
+    await js(`(() => { const f = document.getElementById('loginForm'); if (f) { f.password.value = ${JSON.stringify(process.env.STOCKSWORKS_TEST_PASSPHRASE ?? '')}; f.requestSubmit(); } })()`);
+    await wait(2500);
+    const tabs = await js(`[...document.querySelectorAll('#rNav:not([hidden]) button[data-tab]')].map((b) => b.dataset.tab)`);
+    if (!tabs.length) report.tabs.push({ tab: 'login', error: await js(`document.getElementById('rView').innerText.slice(0, 300)`) });
+    for (const t of tabs) {
+      report.step = `tab ${t}`;
+      await js(`document.querySelector('#rNav [data-tab=${JSON.stringify(t)}]').click()`);
+      await wait(3500);
+      const r = await js(`({ overflow: document.documentElement.scrollWidth > window.innerWidth + 1, width: window.innerWidth,
+        error: [...document.querySelectorAll('#rView .card.err')].map((x) => x.innerText).join(' | ').slice(0, 300) || null,
+        text: document.getElementById('rView').innerText.slice(0, 160) })`);
+      const shot = await wc.capturePage().catch(async () => { await wait(1500); return wc.capturePage(); }); // GPU busy: one retry
+      fs.writeFileSync(path.join(dir, `${deviceId}-${t}.png`), shot.toPNG());
+      report.tabs.push({ tab: t, ...r });
+    }
+    report.step = 'done';
+  } catch (e) { report.fatal = `${report.step}: ${e.message}`; report.stack = String(e.stack).split('\n').slice(0, 6); }
+  finish();
+}
+
 function createTray() {
   tray = new Tray(nativeImage.createFromPath(ICON).resize({ width: 16, height: 16 }));
   tray.setToolTip('StocksWorks');
   tray.setContextMenu(Menu.buildFromTemplate([
     { label: 'Open StocksWorks', click: showMain },
     { label: 'Compute Share', click: openShareWindow },
+    { label: 'Phone emulator', submenu: Object.entries(PHONES).map(([id, d]) => ({ label: d.name, click: () => openPhoneEmulator(id).catch((e) => dialog.showErrorBox('Phone emulator', e.message)) })) },
     { label: 'Open in web browser', click: () => shell.openExternal(appUrl) },
     { label: 'Open settings & data folder', click: () => shell.openPath(DATA) },
     { type: 'separator' },
@@ -316,5 +414,8 @@ app.whenReady().then(async () => {
   createMainWindow();
   createTray();
   if (process.argv.includes('--share')) openShareWindow();
+  const phoneArg = process.argv.find((a) => a.startsWith('--phone'));
+  if (!app.isPackaged && process.env.STOCKSWORKS_PHONE_TEST) runPhoneTest(path.resolve(process.env.STOCKSWORKS_PHONE_TEST));
+  else if (phoneArg) openPhoneEmulator(phoneArg.split('=')[1]).catch((e) => dialog.showErrorBox('Phone emulator', e.message));
   supervisor.tick().catch(() => {});
 });
