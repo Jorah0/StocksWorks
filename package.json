@@ -25,7 +25,7 @@
     "phone": "electron . --phone",
     "phone:test": "node scripts/emulate-phone.mjs",
     "icon": "node scripts/make-icon.mjs",
-    "dist:win": "npm run build:wallet && npm run icon && electron-packager . StocksWorks --platform=win32 --arch=x64 --icon=build/icon.ico --out=dist --overwrite --asar --prune=true --app-copyright=\"StocksWorks\" --win32metadata.FileDescription=StocksWorks --win32metadata.ProductName=StocksWorks --ignore=\"^[\\\\/](data|dist|test|\\.playwright-mcp|\\.mypy_cache|\\.ruff_cache|rig|scripts|docs)([\\\\/]|$)\" --ignore=\"^[\\\\/]\\.env\" && node scripts/fuses.cjs"
+    "dist:win": "npm run build:wallet && npm run icon && electron-packager . StocksWorks --platform=win32 --arch=x64 --icon=build/icon.ico --out=dist --overwrite --asar --prune=true --app-copyright=\"StocksWorks\" --win32metadata.FileDescription=StocksWorks --win32metadata.ProductName=StocksWorks --ignore=\"^[\\\\/](data|dist|test|\\.playwright-mcp|\\.mypy_cache|\\.ruff_cache|rig|scripts|docs)([\\\\/]|$)\" --ignore=\"^[\\\\/]\\.env\" && node scripts/fuses.cjs && node scripts/check-asar.cjs"
   },
   "dependencies": {
     "@anthropic-ai/sdk": "^1.13.0",

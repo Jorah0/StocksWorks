@@ -79,6 +79,7 @@ export function mountAiLab(el, { api, esc, toast, stat }) {
     box.innerHTML = `<div class="bar"><h2>Choose a model</h2><span class="muted tiny">${catalog.models.length} installed across ${status?.hosts.length ?? 1} host(s) · estimates for ${esc(catalog.ctx)} tokens × ${esc(catalog.parallel)} request(s) against ${gib(catalog.budget.budgetGiB)} (${esc(catalog.profile.name)})</span></div>
       ${sel ? `<p>In use for the local analyst: <b class="mono">${esc(sel.model)}</b> <span class="muted tiny">rev ${esc(sel.rev)} · digest ${esc(sel.digest.slice(0, 12))}…</span></p>` : '<p class="muted">No model chosen yet: pick one below with <b>Use</b>.</p>'}
       ${catalog.errors.map((x) => `<p class="err">${esc(x.host)}: ${esc(x.error)}</p>`).join('')}
+      ${catalog.errors.some((x) => x.host === 'This PC') ? '<p><button class="btn primary" type="button" data-install-ollama>Install Ollama on this PC</button> <span class="muted tiny">Runs local AI models. Installs per-user through winget (Windows\' package manager), then starts it.</span></p>' : ''}
       <form id="alCatF" class="row"><label>Search<input name="q" value="${esc(S.q)}" placeholder="name, family, capability…"></label>
         <label>Show<select name="filter"><option value="all" ${S.filter === 'all' ? 'selected' : ''}>All models</option><option value="fit" ${S.filter === 'fit' ? 'selected' : ''}>Fits my hardware</option></select></label>
         <label>Context (tokens)<input name="ctx" inputmode="numeric" value="${esc(S.ctx)}"></label><label>Simultaneous requests<input name="parallel" inputmode="numeric" value="${esc(S.parallel)}"></label></form>
@@ -114,6 +115,15 @@ export function mountAiLab(el, { api, esc, toast, stat }) {
   $('#alCat').addEventListener('click', async (e) => {
     const b = e.target.closest('button[type=button]');
     if (!b) return;
+    if (b.dataset.installOllama !== undefined) { // not bundled with the exe: installed on request
+      b.disabled = true; b.textContent = 'Installing Ollama…';
+      try {
+        const r = await api('/api/ai-lab/install-ollama', { method: 'POST', body: {} });
+        if (r.already) { toast(`Ollama is already running (${r.version ?? 'ok'})`); return loadCatalog(); }
+        toast('Installing Ollama: progress under Jobs'); status.jobs = await api('/api/ai-lab/jobs'); watchJobs();
+      } catch (err) { toast(err.message, true); b.disabled = false; b.textContent = 'Install Ollama on this PC'; }
+      return;
+    }
     try {
       if (b.dataset.use) { await api('/api/ai-lab/select', { method: 'POST', body: { hostId: b.dataset.host, model: b.dataset.use } }); toast(`Now using ${b.dataset.use}`); await loadStatus(); return loadCatalog(); }
       if (b.dataset.pull) {
@@ -138,6 +148,7 @@ export function mountAiLab(el, { api, esc, toast, stat }) {
       <form id="alSetupF" class="row"><label>Install PyTorch for<select name="variant">${VARIANTS.map(([v, l]) => `<option value="${v}">${esc(v === 'auto' ? `${l}: ${st.recommended.label}` : l)}</option>`).join('')}</select></label>
         <button class="btn ${py.finetuneReady ? '' : 'primary'}" type="submit" ${running ? 'disabled' : ''}>${st.appEnv ? 'Update / switch' : 'Install'}</button></form>
       <p class="muted tiny">Installs into a private environment (<span class="mono">${esc(st.dir)}</span>), not your system Python: PyTorch, transformers, tokenizers, peft and helpers. The GPU build is about 3 GB.</p>
+      ${!py.found && !st.appEnv ? '<p class="muted tiny"><b>Python isn\'t installed.</b> Install sets it up first: Python 3.12 per-user through winget (Windows\' package manager, no admin prompt), then the packages above.</p>' : ''}
       <h3>How training runs</h3>
       <form id="alOptsF" class="row"><label>Device<select name="device">${[['auto', 'Auto (GPU when available)'], ['cuda', 'GPU (CUDA)'], ['cpu', 'CPU']].map(([v, l]) => `<option value="${v}" ${S.opts.device === v ? 'selected' : ''} ${v === 'cuda' && !py.cuda ? 'disabled' : ''}>${l}</option>`).join('')}</select></label>
         <label>Precision<select name="precision">${[['auto', 'Auto'], ['bf16', 'bf16 (fast, GPU)'], ['fp16', 'fp16 (GPU)'], ['fp32', 'fp32 (exact, slow)']].map(([v, l]) => `<option value="${v}" ${S.opts.precision === v ? 'selected' : ''}>${l}</option>`).join('')}</select></label>
